@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClassWordle 🟩</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<!-- =====================================================================
+  SETUP INSTRUCTIONS
+  =====================================================================
+  This app uses Supabase as a free database so results sync across
+  ALL devices. Follow these steps once before sharing with students:
+
+  STEP 1 — Create a free Supabase account
+    → Go to https://supabase.com and sign up (free, no credit card)
+
+  STEP 2 — Create a new project
+    → Click "New project", give it a name like "classwordle"
+    → Choose any region, set a database password, click "Create project"
+    → Wait ~2 minutes for it to spin up
+
+  STEP 3 — Run this SQL to create the tables
+    → In your Supabase project, click "SQL Editor" in the left sidebar
+    → Paste and run this SQL:
+
+    create table classes (
+      code text primary key,
+      teacher_name text not null,
+      teacher_password text not null,
+      created_at timestamptz default now()
+    );
+
+    create table daily_words (
+      id serial primary key,
+      class_code text references classes(code),
+      word text not null,
+      play_date date not null default current_date,
+      unique(class_code, play_date)
+    );
+
+    create table results (
+      id serial primary key,
+      class_code text references classes(code),
+      student_name text not null,
+      play_date date not null default current_date,
+      guesses jsonb not null,
+      won boolean not null,
+      guess_count integer not null,
+      played_at timestamptz default now(),
+      unique(class_code, student_name, play_date)
+    );
+
+    alter table classes enable row level security;
+    alter table daily_words enable row level security;
+    alter table results enable row level security;
+
+    create policy "allow all" on classes for all using (true) with check (true);
+    create policy "allow all" on daily_words for all using (true) with check (true);
+    create policy "allow all" on results for all using (true) with check (true);
+
+  STEP 4 — Get your API credentials
+    → Click "Project Settings" (gear icon) → "API"
+    → Copy "Project URL" and paste it below as SUPABASE_URL
+    → Copy "anon public" key and paste it below as SUPABASE_ANON_KEY
+
+  STEP 5 — Set your teacher password
+    → Change TEACHER_PASSWORD below to whatever you want
+    → This is hidden from students — only you know it
+
+  STEP 6 — Save and upload to GitHub Pages or Netlify
+  ===================================================================== -->
+
+<script>
+  // ▼▼▼ PASTE YOUR SUPABASE VALUES HERE ▼▼▼
+  const SUPABASE_URL = 'https://mqglpinynypueqwwbcbw.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xZ2xwaW55bnlwdWVxd3diY2J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNTU2MjAsImV4cCI6MjA5MDYzMTYyMH0.FJY4ObmhMvTQueefJ7XAaGE8ckx-G5KzkLHrSVWkRqs';
+
+  // ▼▼▼ SET YOUR TEACHER PASSWORD HERE ▼▼▼
+  const TEACHER_PASSWORD = '032903';
+  // ▲▲▲ Students never see this file, so this stays private ▲▲▲
+</script>
+
+<style>
+  :root {
+    --green: #6aaa64;
+    --yellow: #c9b458;
+    --gray: #787c7e;
+    --light-gray: #d3d6da;
+    --bg: #fafaf8;
+    --text: #1a1a2e;
+    --accent: #4f46e5;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 15% 15%, rgba(79,70,229,0.07) 0%, transparent 50%),
+      radial-gradient(circle at 85% 85%, rgba(106,170,100,0.09) 0%, transparent 50%);
+  }
+
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* HEADER */
+  header {
+    background: white;
+    border-bottom: 2px solid #f0f0f0;
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .logo { font-family: 'Fredoka One', cursive; font-size: 1.6rem; color: var(--accent); letter-spacing: 1px; }
+  .logo span { color: var(--green); }
+  .header-right { display: flex; gap: 10px; align-items: center; }
+
+  /* BUTTONS */
+  .btn { padding: 10px 22px; border-radius: 50px; border: none; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.95rem; cursor: pointer; transition: all 0.18s; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #4338ca; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(79,70,229,0.3); }
+  .btn-green { background: var(--green); color: white; }
+  .btn-green:hover { background: #5a9a55; transform: translateY(-1px); }
+  .btn-outline { background: transparent; border: 2px solid var(--light-gray); color: var(--text); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm { padding: 6px 14px; font-size: 0.85rem; }
+
+  /* SETUP BANNER */
+  .setup-banner {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border: 2px solid #f59e0b;
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin: 20px auto;
+    max-width: 440px;
+    width: calc(100% - 40px);
+  }
+  .setup-banner h3 { font-weight: 800; color: #92400e; margin-bottom: 8px; font-size: 1rem; }
+  .setup-banner p { font-size: 0.88rem; color: #78350f; line-height: 1.5; }
+  .setup-banner a { color: #b45309; font-weight: 800; }
+
+  /* LOGIN */
+  #login-screen { align-items: center; justify-content: center; padding: 40px 20px; }
+  .login-box { background: white; border-radius: 24px; padding: 48px 40px; max-width: 440px; width: 100%; box-shadow: 0 8px 40px rgba(0,0,0,0.1); text-align: center; }
+  .login-emoji { font-size: 3.5rem; margin-bottom: 16px; }
+  .login-box h1 { font-family: 'Fredoka One', cursive; font-size: 2rem; color: var(--accent); margin-bottom: 6px; }
+  .login-box p { color: #666; margin-bottom: 30px; font-size: 0.95rem; }
+
+  .tab-switcher { display: flex; background: #f3f4f6; border-radius: 50px; padding: 4px; margin-bottom: 28px; }
+  .tab-switcher button { flex: 1; padding: 9px; border: none; border-radius: 50px; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.9rem; cursor: pointer; background: transparent; color: #888; transition: all 0.2s; }
+  .tab-switcher button.active { background: white; color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+  .form-group { margin-bottom: 16px; text-align: left; }
+  .form-group label { display: block; font-weight: 700; font-size: 0.85rem; color: #555; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-group input { width: 100%; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: var(--radius); font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 600; color: var(--text); transition: border-color 0.2s; outline: none; }
+  .form-group input:focus { border-color: var(--accent); }
+
+  .password-wrap { position: relative; }
+  .password-wrap input { padding-right: 48px; }
+  .toggle-pass { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.1rem; color: #aaa; padding: 0; line-height: 1; }
+  .toggle-pass:hover { color: var(--accent); }
+
+  .error-msg { color: #ef4444; font-size: 0.85rem; font-weight: 700; margin-top: 8px; min-height: 20px; }
+
+  /* LOADING */
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* GAME */
+  #game-screen { align-items: center; }
+  .game-container { max-width: 500px; width: 100%; margin: 0 auto; padding: 20px 16px 40px; }
+
+  .welcome-bar { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; border-radius: 16px; padding: 16px 20px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; }
+  .welcome-bar .name { font-weight: 800; font-size: 1.05rem; }
+  .welcome-bar .date { font-size: 0.82rem; opacity: 0.85; margin-top: 2px; }
+
+  .grid-container { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-bottom: 24px; }
+  .grid-row { display: flex; gap: 6px; }
+  .tile { width: 58px; height: 58px; border: 2.5px solid var(--light-gray); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'Fredoka One', cursive; font-size: 1.8rem; text-transform: uppercase; color: var(--text); transition: border-color 0.1s; user-select: none; }
+  .tile.filled { border-color: #999; animation: pop 0.1s ease; }
+  .tile.correct { background: var(--green); border-color: var(--green); color: white; }
+  .tile.present { background: var(--yellow); border-color: var(--yellow); color: white; }
+  .tile.absent { background: var(--gray); border-color: var(--gray); color: white; }
+  .tile.reveal { animation: flip 0.5s ease forwards; }
+
+  @keyframes pop { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+  @keyframes flip { 0%{transform:rotateX(0)} 50%{transform:rotateX(-90deg);background:var(--light-gray)} 100%{transform:rotateX(0)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+  .shake { animation: shake 0.4s ease; }
+
+  .keyboard { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .key-row { display: flex; gap: 6px; }
+  .key { height: 56px; min-width: 38px; padding: 0 6px; border-radius: 8px; border: none; background: var(--light-gray); font-family: 'Fredoka One', cursive; font-size: 1rem; color: var(--text); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+  .key:hover { filter: brightness(0.92); }
+  .key.wide { min-width: 60px; font-size: 0.75rem; font-family: 'Nunito', sans-serif; font-weight: 800; }
+  .key.correct { background: var(--green); color: white; }
+  .key.present { background: var(--yellow); color: white; }
+  .key.absent { background: var(--gray); color: white; }
+
+  .result-box { background: white; border-radius: 20px; padding: 28px; text-align: center; box-shadow: var(--shadow); margin-bottom: 20px; border: 2px solid #f0f0f0; }
+  .result-box .emoji { font-size: 3rem; margin-bottom: 10px; }
+  .result-box h2 { font-family: 'Fredoka One', cursive; font-size: 1.8rem; margin-bottom: 6px; }
+  .result-box .the-word { font-size: 1rem; color: #666; margin-bottom: 16px; }
+  .result-box .the-word strong { color: var(--green); font-size: 1.2rem; text-transform: uppercase; }
+  .result-box .score { font-size: 0.9rem; color: #888; }
+
+  /* TOAST */
+  .toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px); background: #1a1a2e; color: white; padding: 12px 24px; border-radius: 50px; font-weight: 800; font-size: 0.95rem; opacity: 0; transition: all 0.3s; z-index: 1000; white-space: nowrap; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* TEACHER */
+  #teacher-screen { align-items: stretch; }
+  .teacher-container { max-width: 900px; width: 100%; margin: 0 auto; padding: 30px 20px 60px; }
+  .teacher-container h2 { font-family: 'Fredoka One', cursive; font-size: 1.8rem; color: var(--accent); margin-bottom: 6px; }
+  .teacher-container .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 28px; }
+
+  .word-setter { background: white; border-radius: 20px; padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow); border: 2px solid #f0f0f0; }
+  .word-setter h3 { font-weight: 800; font-size: 1.1rem; margin-bottom: 16px; }
+  .word-input-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .word-input-row .form-group { flex: 1; min-width: 200px; margin-bottom: 0; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .stat-card { background: white; border-radius: 16px; padding: 18px 16px; text-align: center; box-shadow: var(--shadow); border: 2px solid #f0f0f0; }
+  .stat-card .num { font-family: 'Fredoka One', cursive; font-size: 2.2rem; color: var(--accent); }
+  .stat-card .lbl { font-size: 0.8rem; color: #888; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+  .students-table-wrap { background: white; border-radius: 20px; overflow: hidden; box-shadow: var(--shadow); border: 2px solid #f0f0f0; }
+  .students-table-wrap h3 { font-weight: 800; font-size: 1.05rem; padding: 18px 20px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 12px 20px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: #999; font-weight: 800; border-bottom: 2px solid #f3f4f6; }
+  td { padding: 14px 20px; border-bottom: 1px solid #f3f4f6; font-weight: 600; font-size: 0.95rem; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafafa; }
+
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 50px; font-size: 0.78rem; font-weight: 800; }
+  .badge-green { background: #d1fae5; color: #065f46; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+
+  .guess-dots { display: flex; gap: 4px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--light-gray); }
+  .dot.correct { background: var(--green); }
+  .dot.present { background: var(--yellow); }
+  .dot.absent { background: var(--gray); }
+
+  .empty-state { text-align: center; padding: 40px; color: #bbb; }
+  .empty-state div { font-size: 2.5rem; margin-bottom: 10px; }
+
+  .word-preview { display: flex; gap: 6px; margin-top: 14px; }
+  .preview-tile { width: 44px; height: 44px; background: var(--green); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'Fredoka One', cursive; font-size: 1.3rem; color: white; text-transform: uppercase; }
+
+  .refresh-btn { font-size: 0.8rem; color: #aaa; background: none; border: none; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 700; padding: 4px 8px; border-radius: 8px; }
+  .refresh-btn:hover { color: var(--accent); background: #f5f3ff; }
+
+  @media (max-width: 480px) {
+    .tile { width: 50px; height: 50px; font-size: 1.5rem; }
+    .key { height: 50px; min-width: 32px; font-size: 0.9rem; }
+    .key.wide { min-width: 52px; }
+    .login-box { padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- ===== SETUP BANNER (shown when Supabase not configured) ===== -->
+<div id="setup-banner" style="display:none">
+  <div class="setup-banner">
+    <h3>⚠️ Database Not Connected Yet</h3>
+    <p>Open this HTML file in a text editor, find the top section, and paste in your <strong>Supabase URL</strong> and <strong>Anon Key</strong>. Full instructions are in the file comments. <a href="https://supabase.com" target="_blank">Create your free Supabase account →</a></p>
+  </div>
+</div>
+
+<!-- ===== LOGIN ===== -->
+<div class="screen active" id="login-screen">
+  <div class="login-box">
+    <div class="login-emoji">🟩</div>
+    <h1>ClassWordle</h1>
+    <p>Your daily classroom word challenge!</p>
+    <div class="tab-switcher">
+      <button class="active" onclick="switchTab('student')">I'm a Student</button>
+      <button onclick="switchTab('teacher')">I'm a Teacher</button>
+    </div>
+
+    <!-- STUDENT -->
+    <div id="student-form">
+      <div class="form-group">
+        <label>First Name</label>
+        <input type="text" id="student-first" placeholder="e.g. Maria" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Last Name</label>
+        <input type="text" id="student-last" placeholder="e.g. Garcia" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Class Code</label>
+        <input type="text" id="student-code" placeholder="Ask your teacher!" autocomplete="off" style="text-transform:uppercase">
+      </div>
+      <div class="error-msg" id="student-error"></div>
+      <button class="btn btn-green" style="width:100%;margin-top:8px" id="student-login-btn" onclick="studentLogin()">Play Today's Wordle →</button>
+    </div>
+
+    <!-- TEACHER -->
+    <div id="teacher-form" style="display:none">
+      <div class="form-group">
+        <label>Your Name</label>
+        <input type="text" id="teacher-name" placeholder="e.g. Mrs. Johnson" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Class Code</label>
+        <input type="text" id="teacher-code-input" placeholder="e.g. ENG101" autocomplete="off" style="text-transform:uppercase">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <div class="password-wrap">
+          <input type="password" id="teacher-pass" placeholder="••••••••">
+          <button class="toggle-pass" onclick="togglePassword()" id="toggle-pass-btn" type="button">👁</button>
+        </div>
+      </div>
+      <div class="error-msg" id="teacher-error"></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:8px" id="teacher-login-btn" onclick="teacherLogin()">Open Dashboard →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== GAME ===== -->
+<div class="screen" id="game-screen">
+  <header>
+    <div class="logo">Class<span>Wordle</span></div>
+    <div class="header-right">
+      <span id="header-student-name" style="font-weight:800;font-size:0.9rem;color:#666"></span>
+      <button class="btn btn-outline btn-sm" onclick="logout()">Log Out</button>
+    </div>
+  </header>
+  <div class="game-container">
+    <div class="welcome-bar">
+      <div>
+        <div class="name">Hey, <span id="welcome-name"></span>! 👋</div>
+        <div class="date" id="welcome-date"></div>
+      </div>
+      <div style="font-size:1.8rem">🟩</div>
+    </div>
+    <div class="result-box" id="result-box" style="display:none">
+      <div class="emoji" id="result-emoji"></div>
+      <h2 id="result-title"></h2>
+      <div class="the-word">The word was <strong id="result-word"></strong></div>
+      <div class="score" id="result-score"></div>
+    </div>
+    <div class="grid-container" id="grid"></div>
+    <div class="keyboard" id="keyboard"></div>
+  </div>
+</div>
+
+<!-- ===== TEACHER ===== -->
+<div class="screen" id="teacher-screen">
+  <header>
+    <div class="logo">Class<span>Wordle</span> <span style="font-family:Nunito;font-size:1rem;color:#888;font-weight:700">— Teacher</span></div>
+    <div class="header-right">
+      <button class="refresh-btn" onclick="renderTeacherDashboard()">↻ Refresh</button>
+      <button class="btn btn-outline btn-sm" onclick="logout()">Log Out</button>
+    </div>
+  </header>
+  <div class="teacher-container">
+    <h2>Dashboard 📋</h2>
+    <div class="subtitle" id="teacher-subtitle"></div>
+
+    <div class="word-setter">
+      <h3>🟩 Today's Word</h3>
+      <div class="word-input-row">
+        <div class="form-group">
+          <label>Set the Word (5 letters)</label>
+          <input type="text" id="new-word-input" maxlength="5" placeholder="e.g. BRAVE" style="text-transform:uppercase;letter-spacing:4px;font-size:1.2rem;text-align:center">
+        </div>
+        <button class="btn btn-green" onclick="setWord()" id="set-word-btn" style="margin-bottom:0">Set Word</button>
+      </div>
+      <div class="error-msg" id="word-error"></div>
+      <div id="current-word-display" style="margin-top:12px;display:none">
+        <div style="font-size:0.82rem;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Current Word:</div>
+        <div class="word-preview" id="word-tiles"></div>
+      </div>
+    </div>
+
+    <div class="stats-row" id="stats-row"></div>
+
+    <div class="students-table-wrap">
+      <h3 style="padding-bottom:14px">Student Results</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Guesses</th>
+            <th>Progress</th>
+          </tr>
+        </thead>
+        <tbody id="students-tbody"></tbody>
+      </table>
+      <div class="empty-state" id="no-students" style="display:none">
+        <div>👩‍🎓</div>
+        <div style="font-weight:700;color:#999">No students have played yet today</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  SUPABASE CLIENT (lightweight fetch-based)
+// ============================================================
+const supabase = {
+  async query(path, options = {}) {
+    if (SUPABASE_URL === 'YOUR_SUPABASE_URL') return { error: 'not_configured' };
+    const url = `${SUPABASE_URL}/rest/v1/${path}`;
+    const res = await fetch(url, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': options.prefer || '',
+        ...options.headers,
+      },
+      method: options.method || 'GET',
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    if (res.status === 204 || res.status === 201) return { data: null, error: null };
+    const data = await res.json().catch(() => null);
+    if (!res.ok) return { data: null, error: data?.message || res.statusText };
+    return { data, error: null };
+  },
+
+  async getClass(code) {
+    const r = await this.query(`classes?code=eq.${encodeURIComponent(code)}&select=*`);
+    return { data: r.data?.[0] || null, error: r.error };
+  },
+
+  async createClass(code, teacherName, password) {
+    return this.query('classes', {
+      method: 'POST',
+      prefer: 'return=minimal',
+      body: { code, teacher_name: teacherName, teacher_password: password },
+    });
+  },
+
+  async getTodayWord(classCode) {
+    const r = await this.query(`daily_words?class_code=eq.${encodeURIComponent(classCode)}&play_date=eq.${today()}&select=word`);
+    return { data: r.data?.[0]?.word || null, error: r.error };
+  },
+
+  async setTodayWord(classCode, word) {
+    return this.query('daily_words', {
+      method: 'POST',
+      prefer: 'resolution=merge-duplicates,return=minimal',
+      body: { class_code: classCode, word: word.toUpperCase(), play_date: today() },
+    });
+  },
+
+  async getResults(classCode) {
+    return this.query(`results?class_code=eq.${encodeURIComponent(classCode)}&play_date=eq.${today()}&select=*&order=played_at.asc`);
+  },
+
+  async saveResult(classCode, studentName, guesses, won, guessCount) {
+    return this.query('results', {
+      method: 'POST',
+      prefer: 'resolution=ignore-duplicates,return=minimal',
+      body: { class_code: classCode, student_name: studentName, guesses, won, guess_count: guessCount, play_date: today() },
+    });
+  },
+
+  async getStudentResult(classCode, studentName) {
+    const r = await this.query(`results?class_code=eq.${encodeURIComponent(classCode)}&student_name=eq.${encodeURIComponent(studentName)}&play_date=eq.${today()}&select=*`);
+    return { data: r.data?.[0] || null, error: r.error };
+  },
+};
+
+// ============================================================
+//  HELPERS
+// ============================================================
+function today() { return new Date().toISOString().slice(0, 10); }
+function formatDate() {
+  return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+function showToast(msg, duration = 1800) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function setLoading(btnId, loading, defaultText) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.innerHTML = loading ? `<span class="spinner"></span> Loading...` : defaultText;
+}
+
+// ============================================================
+//  STATE
+// ============================================================
+let currentUser = null;
+let gameState = null;
+
+// ============================================================
+//  SETUP CHECK
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    document.getElementById('setup-banner').style.display = 'block';
+    document.getElementById('login-screen').prepend(document.getElementById('setup-banner'));
+  }
+
+  ['student-first','student-last','student-code'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') studentLogin(); });
+  });
+  ['teacher-name','teacher-code-input','teacher-pass'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') teacherLogin(); });
+  });
+  document.getElementById('new-word-input').addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+  document.getElementById('student-code').addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+  document.getElementById('teacher-code-input').addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+});
+
+// ============================================================
+//  AUTH
+// ============================================================
+function switchTab(tab) {
+  document.querySelectorAll('.tab-switcher button').forEach((b, i) => {
+    b.classList.toggle('active', (tab === 'student' && i === 0) || (tab === 'teacher' && i === 1));
+  });
+  document.getElementById('student-form').style.display = tab === 'student' ? '' : 'none';
+  document.getElementById('teacher-form').style.display = tab === 'teacher' ? '' : 'none';
+}
+
+function togglePassword() {
+  const input = document.getElementById('teacher-pass');
+  const btn = document.getElementById('toggle-pass-btn');
+  input.type = input.type === 'password' ? 'text' : 'password';
+  btn.textContent = input.type === 'password' ? '👁' : '🙈';
+}
+
+async function studentLogin() {
+  const first = document.getElementById('student-first').value.trim();
+  const last = document.getElementById('student-last').value.trim();
+  const code = document.getElementById('student-code').value.trim().toUpperCase();
+  const err = document.getElementById('student-error');
+
+  if (!first || !last) { err.textContent = 'Please enter your full name!'; return; }
+  if (!code) { err.textContent = 'Please enter your class code!'; return; }
+
+  setLoading('student-login-btn', true, 'Play Today\'s Wordle →');
+  err.textContent = '';
+
+  const { data: cls, error: clsErr } = await supabase.getClass(code);
+  if (clsErr === 'not_configured') { err.textContent = 'App not set up yet — ask your teacher!'; setLoading('student-login-btn', false, 'Play Today\'s Wordle →'); return; }
+  if (!cls) { err.textContent = 'Class code not found. Double-check with your teacher!'; setLoading('student-login-btn', false, 'Play Today\'s Wordle →'); return; }
+
+  const { data: word } = await supabase.getTodayWord(code);
+  if (!word) { err.textContent = "Today's word hasn't been set yet — check back soon!"; setLoading('student-login-btn', false, 'Play Today\'s Wordle →'); return; }
+
+  currentUser = { type: 'student', name: `${first} ${last}`, classCode: code };
+  setLoading('student-login-btn', false, 'Play Today\'s Wordle →');
+  showScreen('game-screen');
+  initGame(word);
+}
+
+async function teacherLogin() {
+  const name = document.getElementById('teacher-name').value.trim();
+  const code = document.getElementById('teacher-code-input').value.trim().toUpperCase();
+  const pass = document.getElementById('teacher-pass').value;
+  const err = document.getElementById('teacher-error');
+
+  if (!name) { err.textContent = 'Please enter your name!'; return; }
+  if (!code) { err.textContent = 'Please enter a class code!'; return; }
+  if (!pass) { err.textContent = 'Please enter your password!'; return; }
+  if (pass !== TEACHER_PASSWORD) { err.textContent = 'Incorrect password!'; return; }
+
+  setLoading('teacher-login-btn', true, 'Open Dashboard →');
+  err.textContent = '';
+
+  // Create class if it doesn't exist
+  const { data: existing } = await supabase.getClass(code);
+  if (!existing) {
+    const { error } = await supabase.createClass(code, name, TEACHER_PASSWORD);
+    if (error) { err.textContent = 'Could not create class — check your Supabase setup.'; setLoading('teacher-login-btn', false, 'Open Dashboard →'); return; }
+  }
+
+  currentUser = { type: 'teacher', name, classCode: code };
+  setLoading('teacher-login-btn', false, 'Open Dashboard →');
+  showScreen('teacher-screen');
+  renderTeacherDashboard();
+}
+
+function logout() {
+  currentUser = null;
+  gameState = null;
+  clearInterval(window._teacherRefresh);
+  document.removeEventListener('keydown', handleKeydown);
+  showScreen('login-screen');
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ============================================================
+//  GAME
+// ============================================================
+const ROWS = 6, COLS = 5;
+
+async function initGame(word) {
+  const name = currentUser.name;
+  const code = currentUser.classCode;
+
+  document.getElementById('welcome-name').textContent = name.split(' ')[0];
+  document.getElementById('header-student-name').textContent = name;
+  document.getElementById('welcome-date').textContent = formatDate();
+
+  buildGrid();
+  buildKeyboard();
+
+  // Check if already played today
+  const { data: existing } = await supabase.getStudentResult(code, name);
+  if (existing) {
+    restoreGame(existing, word.toUpperCase());
+    return;
+  }
+
+  gameState = { word: word.toUpperCase(), guesses: [], currentGuess: '', gameOver: false, won: false, keyStates: {} };
+  document.getElementById('result-box').style.display = 'none';
+  document.addEventListener('keydown', handleKeydown);
+}
+
+function restoreGame(result, word) {
+  gameState = { word, guesses: result.guesses, currentGuess: '', gameOver: true, won: result.won, keyStates: {} };
+  result.guesses.forEach((g, row) => {
+    const ev = evaluateGuess(g, word);
+    ev.forEach((state, col) => {
+      setTile(row, col, g[col], state);
+      const k = g[col];
+      if (state === 'correct') gameState.keyStates[k] = 'correct';
+      else if (state === 'present' && gameState.keyStates[k] !== 'correct') gameState.keyStates[k] = 'present';
+      else if (!gameState.keyStates[k]) gameState.keyStates[k] = state;
+    });
+  });
+  updateKeyboard();
+  showResult(result.won, result.guess_count, word);
+}
+
+function buildGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (let r = 0; r < ROWS; r++) {
+    const row = document.createElement('div');
+    row.className = 'grid-row'; row.id = `row-${r}`;
+    for (let c = 0; c < COLS; c++) {
+      const tile = document.createElement('div');
+      tile.className = 'tile'; tile.id = `tile-${r}-${c}`;
+      row.appendChild(tile);
+    }
+    grid.appendChild(row);
+  }
+}
+
+function setTile(row, col, letter, state) {
+  const tile = document.getElementById(`tile-${row}-${col}`);
+  tile.textContent = letter;
+  tile.className = `tile ${state || 'filled'}`;
+}
+
+function buildKeyboard() {
+  const rows = [
+    ['Q','W','E','R','T','Y','U','I','O','P'],
+    ['A','S','D','F','G','H','J','K','L'],
+    ['ENTER','Z','X','C','V','B','N','M','⌫'],
+  ];
+  const kb = document.getElementById('keyboard');
+  kb.innerHTML = '';
+  rows.forEach(row => {
+    const div = document.createElement('div');
+    div.className = 'key-row';
+    row.forEach(k => {
+      const btn = document.createElement('button');
+      btn.className = 'key' + (k === 'ENTER' || k === '⌫' ? ' wide' : '');
+      btn.textContent = k; btn.id = `key-${k}`;
+      btn.addEventListener('click', () => handleKey(k));
+      div.appendChild(btn);
+    });
+    kb.appendChild(div);
+  });
+}
+
+function updateKeyboard() {
+  Object.entries(gameState.keyStates).forEach(([k, state]) => {
+    const el = document.getElementById(`key-${k}`);
+    if (el) el.className = `key${(k === 'ENTER' || k === '⌫') ? ' wide' : ''} ${state}`;
+  });
+}
+
+function handleKeydown(e) {
+  if (gameState?.gameOver || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Enter') handleKey('ENTER');
+  else if (e.key === 'Backspace') handleKey('⌫');
+  else if (/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toUpperCase());
+}
+
+function handleKey(key) {
+  if (!gameState || gameState.gameOver) return;
+  const row = gameState.guesses.length;
+  if (key === '⌫') {
+    if (gameState.currentGuess.length > 0) {
+      gameState.currentGuess = gameState.currentGuess.slice(0, -1);
+      const tile = document.getElementById(`tile-${row}-${gameState.currentGuess.length}`);
+      tile.textContent = ''; tile.className = 'tile';
+    }
+    return;
+  }
+  if (key === 'ENTER') {
+    if (gameState.currentGuess.length < COLS) { shakeRow(row); showToast('Not enough letters!'); return; }
+    submitGuess();
+    return;
+  }
+  if (gameState.currentGuess.length < COLS) {
+    gameState.currentGuess += key;
+    const col = gameState.currentGuess.length - 1;
+    const tile = document.getElementById(`tile-${row}-${col}`);
+    tile.textContent = key; tile.className = 'tile filled';
+  }
+}
+
+function evaluateGuess(guess, word) {
+  const result = Array(COLS).fill('absent');
+  const wordArr = word.split('');
+  const guessArr = guess.split('');
+  const used = Array(COLS).fill(false);
+  guessArr.forEach((l, i) => { if (l === wordArr[i]) { result[i] = 'correct'; used[i] = true; } });
+  guessArr.forEach((l, i) => {
+    if (result[i] === 'correct') return;
+    const j = wordArr.findIndex((wl, wi) => wl === l && !used[wi]);
+    if (j !== -1) { result[i] = 'present'; used[j] = true; }
+  });
+  return result;
+}
+
+async function submitGuess() {
+  const row = gameState.guesses.length;
+  const guess = gameState.currentGuess;
+  const word = gameState.word;
+  const evaluation = evaluateGuess(guess, word);
+
+  evaluation.forEach((state, col) => {
+    const tile = document.getElementById(`tile-${row}-${col}`);
+    setTimeout(() => {
+      tile.classList.add('reveal');
+      setTimeout(() => { tile.className = `tile ${state}`; }, 250);
+    }, col * 120);
+  });
+
+  evaluation.forEach((state, i) => {
+    const k = guess[i];
+    const cur = gameState.keyStates[k];
+    if (state === 'correct') gameState.keyStates[k] = 'correct';
+    else if (state === 'present' && cur !== 'correct') gameState.keyStates[k] = 'present';
+    else if (!cur) gameState.keyStates[k] = 'absent';
+  });
+
+  gameState.guesses.push(guess);
+  gameState.currentGuess = '';
+
+  const won = evaluation.every(s => s === 'correct');
+  const guessCount = gameState.guesses.length;
+
+  setTimeout(async () => {
+    updateKeyboard();
+    if (won || guessCount >= ROWS) {
+      gameState.gameOver = true;
+      gameState.won = won;
+      document.removeEventListener('keydown', handleKeydown);
+      await supabase.saveResult(currentUser.classCode, currentUser.name, gameState.guesses, won, guessCount);
+      setTimeout(() => showResult(won, guessCount, word), 300);
+    }
+  }, COLS * 120 + 300);
+}
+
+function showResult(won, guessCount, word) {
+  const box = document.getElementById('result-box');
+  box.style.display = '';
+  document.getElementById('result-word').textContent = word;
+  if (won) {
+    const emojis = ['🎯','🔥','⭐','🏆','😎','🥳'];
+    const msgs = ['Genius!','Amazing!','Excellent!','Great job!','Nice work!','Phew!'];
+    const i = Math.min(guessCount - 1, 5);
+    document.getElementById('result-emoji').textContent = emojis[i];
+    document.getElementById('result-title').textContent = msgs[i];
+    document.getElementById('result-score').textContent = `Solved in ${guessCount} guess${guessCount === 1 ? '' : 'es'}!`;
+    document.getElementById('result-title').style.color = 'var(--green)';
+  } else {
+    document.getElementById('result-emoji').textContent = '😔';
+    document.getElementById('result-title').textContent = 'Better luck tomorrow!';
+    document.getElementById('result-title').style.color = 'var(--gray)';
+    document.getElementById('result-score').textContent = '';
+  }
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function shakeRow(row) {
+  const rowEl = document.getElementById(`row-${row}`);
+  rowEl.classList.add('shake');
+  setTimeout(() => rowEl.classList.remove('shake'), 400);
+}
+
+// ============================================================
+//  TEACHER DASHBOARD
+// ============================================================
+async function renderTeacherDashboard() {
+  const code = currentUser.classCode;
+  document.getElementById('teacher-subtitle').textContent = `Class Code: ${code} • ${formatDate()}`;
+
+  const { data: word } = await supabase.getTodayWord(code);
+  document.getElementById('new-word-input').value = word || '';
+  if (word) showWordTiles(word);
+
+  const { data: results } = await supabase.getResults(code);
+  renderResults(results || [], word);
+
+  clearInterval(window._teacherRefresh);
+  window._teacherRefresh = setInterval(async () => {
+    const { data: r } = await supabase.getResults(code);
+    const { data: w } = await supabase.getTodayWord(code);
+    renderResults(r || [], w);
+  }, 30000);
+}
+
+function renderResults(results, word) {
+  const total = results.length;
+  const won = results.filter(r => r.won).length;
+  const avgGuesses = won > 0
+    ? (results.filter(r => r.won).reduce((s, r) => s + r.guess_count, 0) / won).toFixed(1)
+    : '--';
+
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card"><div class="num">${total}</div><div class="lbl">Played</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--green)">${won}</div><div class="lbl">Solved ✓</div></div>
+    <div class="stat-card"><div class="num" style="color:#ef4444">${total - won}</div><div class="lbl">Didn't Solve</div></div>
+    <div class="stat-card"><div class="num">${avgGuesses}</div><div class="lbl">Avg Guesses</div></div>
+  `;
+
+  const tbody = document.getElementById('students-tbody');
+  const noStudents = document.getElementById('no-students');
+
+  if (total === 0) {
+    tbody.innerHTML = '';
+    noStudents.style.display = '';
+    return;
+  }
+  noStudents.style.display = 'none';
+
+  const sorted = [...results].sort((a, b) => {
+    if (a.won && !b.won) return -1;
+    if (!a.won && b.won) return 1;
+    if (a.won && b.won) return a.guess_count - b.guess_count;
+    return 0;
+  });
+
+  tbody.innerHTML = sorted.map(r => {
+    const status = r.won
+      ? `<span class="badge badge-green">✓ Solved in ${r.guess_count}</span>`
+      : `<span class="badge badge-red">✗ Not Solved</span>`;
+    const dotsHtml = (r.guesses || []).map(g => {
+      const ev = evaluateGuess(g.toUpperCase(), (word || '').toUpperCase());
+      return `<div class="guess-dots">${ev.map(s => `<div class="dot ${s}"></div>`).join('')}</div>`;
+    }).join('');
+    return `<tr>
+      <td><strong>${r.student_name}</strong></td>
+      <td>${status}</td>
+      <td><strong>${r.guess_count}</strong> / 6</td>
+      <td><div style="display:flex;flex-direction:column;gap:3px">${dotsHtml}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+function showWordTiles(word) {
+  const display = document.getElementById('current-word-display');
+  const tiles = document.getElementById('word-tiles');
+  display.style.display = '';
+  tiles.innerHTML = '';
+  word.toUpperCase().split('').forEach(l => {
+    const t = document.createElement('div');
+    t.className = 'preview-tile';
+    t.textContent = l;
+    tiles.appendChild(t);
+  });
+}
+
+async function setWord() {
+  const input = document.getElementById('new-word-input').value.trim().toUpperCase();
+  const err = document.getElementById('word-error');
+  if (input.length !== 5) { err.textContent = 'Word must be exactly 5 letters!'; return; }
+  if (!/^[A-Z]+$/.test(input)) { err.textContent = 'Letters only please!'; return; }
+
+  setLoading('set-word-btn', true, 'Set Word');
+  const { error } = await supabase.setTodayWord(currentUser.classCode, input);
+  setLoading('set-word-btn', false, 'Set Word');
+
+  if (error) { err.textContent = 'Could not save word — check your connection.'; return; }
+  err.textContent = '';
+  showWordTiles(input);
+  showToast(`Word set to "${input}"! 🟩`, 2000);
+}
+</script>
+</body>
+</html>
