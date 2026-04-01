@@ -1,1 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClassWordle 🟩</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<!-- =====================================================================
+  RUN THIS SQL IN SUPABASE SQL EDITOR TO UPGRADE YOUR DATABASE
+  (Safe to run even if tables already exist)
+  =====================================================================
+
+  create table if not exists students (
+    id serial primary key,
+    class_code text references classes(code),
+    display_name text not null,
+    username text not null,
+    password_hash text not null,
+    period integer not null default 1,
+    created_at timestamptz default now(),
+    unique(class_code, username)
+  );
+
+  alter table results add column if not exists period integer not null default 1;
+  alter table results add column if not exists solve_time_seconds integer;
+  alter table results add column if not exists student_username text;
+
+  alter table students enable row level security;
+  create policy "allow all" on students for all using (true) with check (true);
+
+  ===================================================================== -->
+
+<script>
+  const SUPABASE_URL = 'https://mqglpinynypueqwwbcbw.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xZ2xwaW55bnlwdWVxd3diY2J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNTU2MjAsImV4cCI6MjA5MDYzMTYyMH0.FJY4ObmhMvTQueefJ7XAaGE8ckx-G5KzkLHrSVWkRqs';
+  const TEACHER_PASSWORD = '032903';
+</script>
+
+<style>
+:root { --green:#6aaa64; --yellow:#c9b458; --gray:#787c7e; --light-gray:#d3d6da; --bg:#fafaf8; --text:#1a1a2e; --accent:#4f46e5; --radius:12px; --shadow:0 4px 24px rgba(0,0,0,0.08); }
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;background-image:radial-gradient(circle at 15% 15%,rgba(79,70,229,.07) 0%,transparent 50%),radial-gradient(circle at 85% 85%,rgba(106,170,100,.09) 0%,transparent 50%);}
+.screen{display:none;min-height:100vh;}.screen.active{display:flex;flex-direction:column;}
+header{background:white;border-bottom:2px solid #f0f0f0;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.06);}
+.logo{font-family:'Fredoka One',cursive;font-size:1.6rem;color:var(--accent);letter-spacing:1px;}.logo span{color:var(--green);}
+.header-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.btn{padding:10px 22px;border-radius:50px;border:none;font-family:'Nunito',sans-serif;font-weight:700;font-size:.95rem;cursor:pointer;transition:all .18s;}
+.btn-primary{background:var(--accent);color:white;}.btn-primary:hover{background:#4338ca;transform:translateY(-1px);box-shadow:0 4px 14px rgba(79,70,229,.3);}
+.btn-green{background:var(--green);color:white;}.btn-green:hover{background:#5a9a55;transform:translateY(-1px);}
+.btn-outline{background:transparent;border:2px solid var(--light-gray);color:var(--text);}.btn-outline:hover{border-color:var(--accent);color:var(--accent);}
+.btn-sm{padding:6px 14px;font-size:.85rem;}
+#login-screen{align-items:center;justify-content:center;padding:40px 20px;}
+.login-box{background:white;border-radius:24px;padding:48px 40px;max-width:440px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.1);text-align:center;}
+.login-emoji{font-size:3.5rem;margin-bottom:16px;}
+.login-box h1{font-family:'Fredoka One',cursive;font-size:2rem;color:var(--accent);margin-bottom:6px;}
+.login-box>p{color:#666;margin-bottom:30px;font-size:.95rem;}
+.tab-sw{display:flex;background:#f3f4f6;border-radius:50px;padding:4px;margin-bottom:28px;}
+.tab-sw button{flex:1;padding:9px;border:none;border-radius:50px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer;background:transparent;color:#888;transition:all .2s;}
+.tab-sw button.active{background:white;color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.1);}
+.fg{margin-bottom:16px;text-align:left;}
+.fg label{display:block;font-weight:700;font-size:.85rem;color:#555;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+.fg input{width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:var(--radius);font-family:'Nunito',sans-serif;font-size:1rem;font-weight:600;color:var(--text);transition:border-color .2s;outline:none;}
+.fg input:focus{border-color:var(--accent);}
+.pw-wrap{position:relative;}.pw-wrap input{padding-right:48px;}
+.tp{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;color:#aaa;padding:0;}
+.err{color:#ef4444;font-size:.85rem;font-weight:700;margin-top:8px;min-height:20px;}
+.lsw{margin-top:16px;font-size:.85rem;color:#aaa;}.lsw a{color:var(--accent);font-weight:700;cursor:pointer;}
+.per-sel{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;text-align:left;}
+.per-sel label{font-weight:700;font-size:.85rem;color:#555;text-transform:uppercase;letter-spacing:.5px;}
+.per-btns{display:flex;gap:8px;flex-wrap:wrap;}
+.per-btn{width:48px;height:48px;border-radius:12px;border:2.5px solid #e5e7eb;background:white;font-family:'Fredoka One',cursive;font-size:1.1rem;color:#aaa;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;}
+.per-btn:hover{border-color:var(--green);color:var(--green);}.per-btn.sel{border-color:var(--green);background:var(--green);color:white;}
+.spinner{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#game-screen{align-items:center;}
+.game-wrap{max-width:500px;width:100%;margin:0 auto;padding:20px 16px 40px;}
+.welcome-bar{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:white;border-radius:16px;padding:16px 20px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;}
+.welcome-bar .wname{font-weight:800;font-size:1.05rem;}.welcome-bar .wdate{font-size:.82rem;opacity:.85;margin-top:2px;}.welcome-bar .wstreak{font-size:.82rem;opacity:.9;margin-top:3px;}
+.timer-bar{background:white;border-radius:12px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--shadow);border:2px solid #f0f0f0;font-family:'Fredoka One',cursive;font-size:1.4rem;color:var(--accent);}
+.grid-wrap{display:flex;flex-direction:column;gap:6px;align-items:center;margin-bottom:20px;}
+.grid-row{display:flex;gap:6px;}
+.tile{width:58px;height:58px;border:2.5px solid var(--light-gray);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;font-size:1.8rem;text-transform:uppercase;color:var(--text);transition:border-color .1s;user-select:none;}
+.tile.filled{border-color:#999;animation:pop .1s ease;}
+.tile.correct{background:var(--green);border-color:var(--green);color:white;}
+.tile.present{background:var(--yellow);border-color:var(--yellow);color:white;}
+.tile.absent{background:var(--gray);border-color:var(--gray);color:white;}
+.tile.reveal{animation:flip .5s ease forwards;}
+@keyframes pop{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+@keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(-90deg);background:var(--light-gray)}100%{transform:rotateX(0)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.shake{animation:shake .4s ease;}
+.keyboard{display:flex;flex-direction:column;gap:8px;align-items:center;}
+.key-row{display:flex;gap:6px;}
+.key{height:56px;min-width:38px;padding:0 6px;border-radius:8px;border:none;background:var(--light-gray);font-family:'Fredoka One',cursive;font-size:1rem;color:var(--text);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;}
+.key:hover{filter:brightness(.92);}.key.wide{min-width:60px;font-size:.75rem;font-family:'Nunito',sans-serif;font-weight:800;}
+.key.correct{background:var(--green);color:white;}.key.present{background:var(--yellow);color:white;}.key.absent{background:var(--gray);color:white;}
+.result-box{background:white;border-radius:20px;padding:28px;text-align:center;box-shadow:var(--shadow);margin-bottom:20px;border:2px solid #f0f0f0;}
+.result-box .re{font-size:3rem;margin-bottom:10px;}
+.result-box h2{font-family:'Fredoka One',cursive;font-size:1.8rem;margin-bottom:6px;}
+.result-box .rw{font-size:1rem;color:#666;}.rw strong{color:var(--green);font-size:1.2rem;text-transform:uppercase;}
+.rstats{display:flex;gap:12px;justify-content:center;margin-top:16px;flex-wrap:wrap;}
+.rstat{background:#f8f8f8;border-radius:12px;padding:10px 16px;text-align:center;}
+.rstat .rsn{font-family:'Fredoka One',cursive;font-size:1.5rem;color:var(--accent);}.rstat .rsl{font-size:.75rem;color:#aaa;font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
+.confetti-piece{position:fixed;width:10px;height:10px;border-radius:2px;top:-20px;animation:cfall linear forwards;pointer-events:none;z-index:9999;}
+@keyframes cfall{to{transform:translateY(110vh) rotate(720deg);opacity:0;}}
+.toast{position:fixed;top:80px;left:50%;transform:translateX(-50%) translateY(-20px);background:#1a1a2e;color:white;padding:12px 24px;border-radius:50px;font-weight:800;font-size:.95rem;opacity:0;transition:all .3s;z-index:1000;white-space:nowrap;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#teacher-screen{align-items:stretch;}
+.t-wrap{max-width:960px;width:100%;margin:0 auto;padding:30px 20px 60px;}
+.t-wrap>h2{font-family:'Fredoka One',cursive;font-size:1.8rem;color:var(--accent);margin-bottom:6px;}
+.t-wrap .sub{color:#666;font-size:.9rem;margin-bottom:24px;}
+.t-nav{display:flex;gap:6px;margin-bottom:28px;border-bottom:2px solid #f0f0f0;padding-bottom:0;}
+.t-nav button{padding:10px 20px;border:none;background:none;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;color:#aaa;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s;}
+.t-nav button.active{color:var(--accent);border-bottom-color:var(--accent);}
+.t-panel{display:none;}.t-panel.active{display:block;}
+.card{background:white;border-radius:20px;padding:24px;margin-bottom:24px;box-shadow:var(--shadow);border:2px solid #f0f0f0;}
+.card h3{font-weight:800;font-size:1.1rem;margin-bottom:16px;}
+.word-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
+.word-row .fg{flex:1;min-width:200px;margin-bottom:0;}
+.wprev{display:flex;gap:6px;margin-top:14px;}
+.wt{width:44px;height:44px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;font-size:1.3rem;color:white;text-transform:uppercase;}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;margin-bottom:24px;}
+.sc{background:white;border-radius:16px;padding:18px 16px;text-align:center;box-shadow:var(--shadow);border:2px solid #f0f0f0;}
+.sc .sn{font-family:'Fredoka One',cursive;font-size:2.2rem;color:var(--accent);}.sc .sl{font-size:.8rem;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+.per-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px;}
+.per-tab{padding:8px 18px;border-radius:50px;border:2px solid #e5e7eb;background:white;font-family:'Nunito',sans-serif;font-weight:700;font-size:.88rem;color:#888;cursor:pointer;transition:all .15s;}
+.per-tab:hover{border-color:var(--accent);color:var(--accent);}.per-tab.active{border-color:var(--accent);background:var(--accent);color:white;}
+.per-tab .cnt{display:inline-block;background:rgba(255,255,255,.25);border-radius:50px;padding:1px 7px;font-size:.78rem;margin-left:4px;}
+.tw{background:white;border-radius:20px;overflow:hidden;box-shadow:var(--shadow);border:2px solid #f0f0f0;}
+.tw-hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;}
+.tw h3{font-weight:800;font-size:1.05rem;}
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;padding:10px 20px;font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;color:#999;font-weight:800;border-bottom:2px solid #f3f4f6;}
+td{padding:12px 20px;border-bottom:1px solid #f3f4f6;font-weight:600;font-size:.92rem;}
+tr:last-child td{border-bottom:none;}tr:hover td{background:#fafafa;}
+.badge{display:inline-block;padding:4px 12px;border-radius:50px;font-size:.78rem;font-weight:800;}
+.bg{background:#d1fae5;color:#065f46;}.br{background:#fee2e2;color:#991b1b;}
+.dots{display:flex;gap:4px;}
+.dot{width:11px;height:11px;border-radius:50%;background:var(--light-gray);}
+.dot.correct{background:var(--green);}.dot.present{background:var(--yellow);}.dot.absent{background:var(--gray);}
+.empty{text-align:center;padding:40px;color:#bbb;}
+.empty div{font-size:2.5rem;margin-bottom:10px;}
+.hist-grp{margin-bottom:24px;}
+.hist-lbl{font-weight:800;font-size:1rem;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.hist-chip{background:var(--green);color:white;font-family:'Fredoka One',cursive;padding:3px 12px;border-radius:50px;font-size:.85rem;text-transform:uppercase;letter-spacing:2px;}
+.stu-card{background:white;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:2px solid #f0f0f0;margin-bottom:16px;cursor:pointer;transition:all .15s;}
+.stu-card:hover{border-color:var(--accent);transform:translateY(-1px);}
+.stu-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.stu-hdr .sname{font-weight:800;font-size:1rem;}.stu-hdr .sper{font-size:.78rem;color:#aaa;font-weight:700;}
+.mini-stats{display:flex;gap:16px;flex-wrap:wrap;}
+.ms{text-align:center;}.ms .mn{font-family:'Fredoka One',cursive;font-size:1.3rem;color:var(--accent);}.ms .ml{font-size:.7rem;color:#aaa;font-weight:700;text-transform:uppercase;}
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal{background:white;border-radius:24px;padding:32px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.modal h3{font-family:'Fredoka One',cursive;font-size:1.4rem;color:var(--accent);margin-bottom:20px;}
+.modal-x{float:right;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#aaa;margin-top:-4px;}
+.hmr{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f3f4f6;}
+.hmr:last-child{border-bottom:none;}
+.hmd{font-size:.82rem;color:#aaa;font-weight:700;min-width:80px;}
+.hmw{font-family:'Fredoka One',cursive;font-size:.9rem;color:var(--green);text-transform:uppercase;letter-spacing:1px;min-width:60px;}
+.rfbtn{font-size:.8rem;color:#aaa;background:none;border:none;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:700;padding:4px 8px;border-radius:8px;}
+.rfbtn:hover{color:var(--accent);background:#f5f3ff;}
+@media(max-width:480px){.tile{width:50px;height:50px;font-size:1.5rem;}.key{height:50px;min-width:32px;font-size:.9rem;}.key.wide{min-width:52px;}.login-box{padding:32px 24px;}}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<!-- LOGIN -->
+<div class="screen active" id="login-screen">
+<div class="login-box">
+  <div class="login-emoji">🟩</div>
+  <h1>ClassWordle</h1>
+  <p>Your daily classroom word challenge!</p>
+  <div class="tab-sw">
+    <button class="active" onclick="switchTab('student')">Student</button>
+    <button onclick="switchTab('teacher')">Teacher</button>
+  </div>
+
+  <!-- STUDENT SIGN IN -->
+  <div id="s-signin">
+    <div class="fg"><label>Username</label><input type="text" id="si-user" placeholder="e.g. maria.garcia" autocomplete="off"></div>
+    <div class="fg"><label>Password</label><div class="pw-wrap"><input type="password" id="si-pass" placeholder="••••••••"><button class="tp" onclick="togglePass('si-pass',this)">👁</button></div></div>
+    <div class="fg"><label>Class Code</label><input type="text" id="si-code" placeholder="Ask your teacher!" style="text-transform:uppercase" autocomplete="off"></div>
+    <div class="err" id="si-err"></div>
+    <button class="btn btn-green" style="width:100%;margin-top:8px" id="si-btn" onclick="studentSignIn()">Play Today's Wordle →</button>
+    <div class="lsw">No account? <a onclick="showReg()">Sign up here</a></div>
+  </div>
+
+  <!-- STUDENT REGISTER -->
+  <div id="s-reg" style="display:none">
+    <div class="fg"><label>First Name</label><input type="text" id="r-first" placeholder="e.g. Maria" autocomplete="off"></div>
+    <div class="fg"><label>Last Name</label><input type="text" id="r-last" placeholder="e.g. Garcia" autocomplete="off"></div>
+    <div class="fg"><label>Username</label><input type="text" id="r-user" placeholder="e.g. maria.garcia" autocomplete="off"></div>
+    <div class="fg"><label>Password</label><div class="pw-wrap"><input type="password" id="r-pass" placeholder="At least 4 characters"><button class="tp" onclick="togglePass('r-pass',this)">👁</button></div></div>
+    <div class="fg"><label>Class Code</label><input type="text" id="r-code" placeholder="Ask your teacher!" style="text-transform:uppercase" autocomplete="off"></div>
+    <div class="per-sel"><label>Your Period</label>
+      <div class="per-btns">
+        <button class="per-btn" onclick="selPer(1)">1</button>
+        <button class="per-btn" onclick="selPer(2)">2</button>
+        <button class="per-btn" onclick="selPer(3)">3</button>
+        <button class="per-btn" onclick="selPer(4)">4</button>
+        <button class="per-btn" onclick="selPer(5)">5</button>
+      </div>
+    </div>
+    <div class="err" id="r-err"></div>
+    <button class="btn btn-green" style="width:100%;margin-top:8px" id="r-btn" onclick="studentReg()">Create Account →</button>
+    <div class="lsw">Have an account? <a onclick="showSignIn()">Sign in</a></div>
+  </div>
+
+  <!-- TEACHER -->
+  <div id="t-form" style="display:none">
+    <div class="fg"><label>Your Name</label><input type="text" id="t-name" placeholder="e.g. Mrs. Johnson" autocomplete="off"></div>
+    <div class="fg"><label>Class Code</label><input type="text" id="t-code" placeholder="e.g. ENG101" style="text-transform:uppercase" autocomplete="off"></div>
+    <div class="fg"><label>Password</label><div class="pw-wrap"><input type="password" id="t-pass" placeholder="••••••••"><button class="tp" onclick="togglePass('t-pass',this)">👁</button></div></div>
+    <div class="err" id="t-err"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px" id="t-btn" onclick="teacherLogin()">Open Dashboard →</button>
+  </div>
+</div>
+</div>
+
+<!-- GAME -->
+<div class="screen" id="game-screen">
+  <header>
+    <div class="logo">Class<span>Wordle</span></div>
+    <div class="header-right">
+      <span id="h-name" style="font-weight:800;font-size:.85rem;color:#666"></span>
+      <button class="btn btn-outline btn-sm" onclick="logout()">Log Out</button>
+    </div>
+  </header>
+  <div class="game-wrap">
+    <div class="welcome-bar">
+      <div><div class="wname">Hey, <span id="g-name"></span>! 👋</div><div class="wdate" id="g-date"></div><div class="wstreak" id="g-streak"></div></div>
+      <div style="font-size:1.8rem">🟩</div>
+    </div>
+    <div class="timer-bar" id="timer-bar"><span>⏱️</span><span id="timer-disp">0:00</span></div>
+    <div class="result-box" id="result-box" style="display:none">
+      <div class="re" id="r-emoji"></div>
+      <h2 id="r-title"></h2>
+      <div class="rw">The word was <strong id="r-word"></strong></div>
+      <div class="rstats" id="r-stats"></div>
+    </div>
+    <div class="grid-wrap" id="grid"></div>
+    <div class="keyboard" id="keyboard"></div>
+  </div>
+</div>
+
+<!-- TEACHER -->
+<div class="screen" id="teacher-screen">
+  <header>
+    <div class="logo">Class<span>Wordle</span> <span style="font-family:Nunito;font-size:1rem;color:#888;font-weight:700">— Teacher</span></div>
+    <div class="header-right">
+      <button class="rfbtn" onclick="refreshDash()">↻ Refresh</button>
+      <button class="btn btn-outline btn-sm" onclick="logout()">Log Out</button>
+    </div>
+  </header>
+  <div class="t-wrap">
+    <h2>Dashboard 📋</h2>
+    <div class="sub" id="t-sub"></div>
+    <nav class="t-nav">
+      <button class="active" onclick="showPanel('today')">Today</button>
+      <button onclick="showPanel('history')">History</button>
+      <button onclick="showPanel('students')">Students</button>
+    </nav>
+
+    <!-- TODAY -->
+    <div class="t-panel active" id="panel-today">
+      <div class="card">
+        <h3>🟩 Today's Word</h3>
+        <div class="word-row">
+          <div class="fg"><label>Set the Word (5 letters)</label>
+            <input type="text" id="word-in" maxlength="5" placeholder="e.g. BRAVE" style="text-transform:uppercase;letter-spacing:4px;font-size:1.2rem;text-align:center">
+          </div>
+          <button class="btn btn-green" onclick="setWord()" id="sw-btn" style="margin-bottom:0">Set Word</button>
+        </div>
+        <div class="err" id="word-err"></div>
+        <div id="word-disp" style="display:none"><div style="font-size:.82rem;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;margin-top:12px">Current Word:</div><div class="wprev" id="word-tiles"></div></div>
+      </div>
+      <div class="per-tabs" id="per-tabs"></div>
+      <div class="stats-row" id="today-stats"></div>
+      <div class="tw">
+        <div class="tw-hdr"><h3>Student Results</h3><button class="btn btn-outline btn-sm" onclick="exportCSV()">⬇ Export CSV</button></div>
+        <table><thead><tr><th>Name</th><th>Status</th><th>Guesses</th><th>Time</th><th>Progress</th></tr></thead><tbody id="today-body"></tbody></table>
+        <div class="empty" id="today-empty" style="display:none"><div>👩‍🎓</div><div style="font-weight:700;color:#999">No students have played yet today</div></div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="t-panel" id="panel-history">
+      <div id="hist-content"><div class="empty"><div>📅</div><div style="font-weight:700;color:#999">Loading...</div></div></div>
+    </div>
+
+    <!-- STUDENTS -->
+    <div class="t-panel" id="panel-students">
+      <div class="per-tabs" id="stu-per-tabs"></div>
+      <div id="stu-content"><div class="empty"><div>👩‍🎓</div><div style="font-weight:700;color:#999">Loading...</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-ov" id="modal" style="display:none" onclick="closeModal(event)">
+  <div class="modal">
+    <button class="modal-x" onclick="document.getElementById('modal').style.display='none'">✕</button>
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ============ SUPABASE ============
+const sb={
+  async q(path,o={}){
+    if(SUPABASE_URL==='YOUR_SUPABASE_URL')return{error:'not_configured'};
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/${path}`,{
+      headers:{'apikey':SUPABASE_ANON_KEY,'Authorization':`Bearer ${SUPABASE_ANON_KEY}`,'Content-Type':'application/json','Prefer':o.prefer||''},
+      method:o.method||'GET',body:o.body?JSON.stringify(o.body):undefined});
+    if(res.status===204||res.status===201)return{data:null,error:null};
+    const d=await res.json().catch(()=>null);
+    if(!res.ok)return{data:null,error:d?.message||res.statusText};
+    return{data:d,error:null};
+  },
+  async getClass(c){const r=await this.q(`classes?code=eq.${E(c)}&select=*`);return{data:r.data?.[0]||null,error:r.error};},
+  async mkClass(c,n,p){return this.q('classes',{method:'POST',prefer:'return=minimal',body:{code:c,teacher_name:n,teacher_password:p}});},
+  async getWord(c,d){const r=await this.q(`daily_words?class_code=eq.${E(c)}&play_date=eq.${d}&select=word`);return{data:r.data?.[0]?.word||null,error:r.error};},
+  async setWord(c,w){return this.q('daily_words',{method:'POST',prefer:'resolution=merge-duplicates,return=minimal',body:{class_code:c,word:w,play_date:td()}});},
+  async getResults(c,d){return this.q(`results?class_code=eq.${E(c)}&play_date=eq.${d||td()}&select=*&order=played_at.asc`);},
+  async getAllResults(c){return this.q(`results?class_code=eq.${E(c)}&select=*&order=play_date.desc`);},
+  async getMyResult(c,u,d){const r=await this.q(`results?class_code=eq.${E(c)}&student_username=eq.${E(u)}&play_date=eq.${d||td()}&select=*`);return{data:r.data?.[0]||null,error:r.error};},
+  async saveResult(c,n,u,p,g,w,cnt,s){return this.q('results',{method:'POST',prefer:'resolution=ignore-duplicates,return=minimal',body:{class_code:c,student_name:n,student_username:u,period:p,guesses:g,won:w,guess_count:cnt,solve_time_seconds:s,play_date:td()}});},
+  async getStudent(c,u){const r=await this.q(`students?class_code=eq.${E(c)}&username=eq.${E(u)}&select=*`);return{data:r.data?.[0]||null,error:r.error};},
+  async mkStudent(c,n,u,h,p){return this.q('students',{method:'POST',prefer:'return=minimal',body:{class_code:c,display_name:n,username:u,password_hash:h,period:p}});},
+  async allStudents(c){return this.q(`students?class_code=eq.${E(c)}&select=*&order=period.asc,username.asc`);},
+  async allWords(c){return this.q(`daily_words?class_code=eq.${E(c)}&select=*&order=play_date.desc`);}
+};
+const E=s=>encodeURIComponent(s);
+function td(){return new Date().toISOString().slice(0,10);}
+function fmtD(d){return new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});}
+function fmtDs(d){return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function fmtT(s){if(!s&&s!==0)return'--';const m=Math.floor(s/60),sec=s%60;return`${m}:${String(sec).padStart(2,'0')}`;}
+async function hashPw(p){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
+function toast(msg,dur=1800){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
+function setLoad(id,on,txt){const b=document.getElementById(id);if(!b)return;b.disabled=on;b.innerHTML=on?'<span class="spinner"></span>Loading...':txt;}
+function togglePass(id,btn){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';btn.textContent=i.type==='password'?'👁':'🙈';}
+
+// ============ STATE ============
+let CU=null,GS=null,selPeriod=null,timerIv=null,timerSecs=0,actPer='all',actPanel='today',stuActPer='all';
+let _todayResults=[],_todayWord=null,_stuCache=null;
+
+// ============ LOGIN UI ============
+function switchTab(t){
+  document.querySelectorAll('.tab-sw button').forEach((b,i)=>b.classList.toggle('active',(t==='student'&&i===0)||(t==='teacher'&&i===1)));
+  document.getElementById('s-signin').style.display=t==='student'?'':'none';
+  document.getElementById('s-reg').style.display='none';
+  document.getElementById('t-form').style.display=t==='teacher'?'':'none';
+}
+function showReg(){document.getElementById('s-signin').style.display='none';document.getElementById('s-reg').style.display='';}
+function showSignIn(){document.getElementById('s-reg').style.display='none';document.getElementById('s-signin').style.display='';}
+function selPer(p){selPeriod=p;document.querySelectorAll('.per-btn').forEach((b,i)=>b.classList.toggle('sel',i+1===p));}
+
+// ============ AUTH ============
+async function studentReg(){
+  const first=document.getElementById('r-first').value.trim(),last=document.getElementById('r-last').value.trim();
+  const user=document.getElementById('r-user').value.trim().toLowerCase(),pass=document.getElementById('r-pass').value;
+  const code=document.getElementById('r-code').value.trim().toUpperCase(),err=document.getElementById('r-err');
+  if(!first||!last){err.textContent='Enter your full name!';return;}
+  if(!user){err.textContent='Choose a username!';return;}
+  if(!pass||pass.length<4){err.textContent='Password must be at least 4 characters!';return;}
+  if(!code){err.textContent='Enter your class code!';return;}
+  if(!selPeriod){err.textContent='Select your period!';return;}
+  setLoad('r-btn',true,'Create Account →');err.textContent='';
+  const{data:cls,error:ce}=await sb.getClass(code);
+  if(ce==='not_configured'){err.textContent='App not configured yet.';setLoad('r-btn',false,'Create Account →');return;}
+  if(!cls){err.textContent='Class code not found!';setLoad('r-btn',false,'Create Account →');return;}
+  const{data:ex}=await sb.getStudent(code,user);
+  if(ex){err.textContent='Username taken — try another!';setLoad('r-btn',false,'Create Account →');return;}
+  const hash=await hashPw(pass);
+  const{error}=await sb.mkStudent(code,`${first} ${last}`,user,hash,selPeriod);
+  if(error){err.textContent='Could not create account!';setLoad('r-btn',false,'Create Account →');return;}
+  setLoad('r-btn',false,'Create Account →');
+  toast('Account created! Sign in 🎉',2000);
+  document.getElementById('si-user').value=user;document.getElementById('si-code').value=code;showSignIn();
+}
+
+async function studentSignIn(){
+  const user=document.getElementById('si-user').value.trim().toLowerCase(),pass=document.getElementById('si-pass').value;
+  const code=document.getElementById('si-code').value.trim().toUpperCase(),err=document.getElementById('si-err');
+  if(!user||!pass){err.textContent='Enter your username and password!';return;}
+  if(!code){err.textContent='Enter your class code!';return;}
+  setLoad('si-btn',true,"Play Today's Wordle →");err.textContent='';
+  const{data:stu,error:se}=await sb.getStudent(code,user);
+  if(se==='not_configured'){err.textContent='App not configured yet.';setLoad('si-btn',false,"Play Today's Wordle →");return;}
+  if(!stu){err.textContent='Account not found — check username and class code!';setLoad('si-btn',false,"Play Today's Wordle →");return;}
+  const hash=await hashPw(pass);
+  if(hash!==stu.password_hash){err.textContent='Wrong password!';setLoad('si-btn',false,"Play Today's Wordle →");return;}
+  const{data:word}=await sb.getWord(code,td());
+  if(!word){err.textContent="Today's word hasn't been set yet!";setLoad('si-btn',false,"Play Today's Wordle →");return;}
+  CU={type:'student',name:stu.display_name,username:user,classCode:code,period:stu.period};
+  setLoad('si-btn',false,"Play Today's Wordle →");
+  showScreen('game-screen');initGame(word);
+}
+
+async function teacherLogin(){
+  const name=document.getElementById('t-name').value.trim(),code=document.getElementById('t-code').value.trim().toUpperCase();
+  const pass=document.getElementById('t-pass').value,err=document.getElementById('t-err');
+  if(!name){err.textContent='Enter your name!';return;}
+  if(!code){err.textContent='Enter a class code!';return;}
+  if(pass!==TEACHER_PASSWORD){err.textContent='Incorrect password!';return;}
+  setLoad('t-btn',true,'Open Dashboard →');
+  const{data:ex}=await sb.getClass(code);
+  if(!ex){const{error}=await sb.mkClass(code,name,TEACHER_PASSWORD);if(error){err.textContent='Could not create class.';setLoad('t-btn',false,'Open Dashboard →');return;}}
+  CU={type:'teacher',name,classCode:code};
+  setLoad('t-btn',false,'Open Dashboard →');showScreen('teacher-screen');initTeacher();
+}
+
+function logout(){
+  CU=null;GS=null;selPeriod=null;actPer='all';actPanel='today';stuActPer='all';
+  clearInterval(timerIv);clearInterval(window._tRefresh);
+  document.removeEventListener('keydown',handleKD);showScreen('login-screen');
+}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+
+// ============ GAME ============
+const ROWS=6,COLS=5;
+
+async function initGame(word){
+  document.getElementById('g-name').textContent=CU.name.split(' ')[0];
+  document.getElementById('h-name').textContent=`${CU.name} · P${CU.period}`;
+  document.getElementById('g-date').textContent=fmtD(td());
+  buildGrid();buildKeyboard();
+  const streak=await calcStreak();
+  document.getElementById('g-streak').textContent=streak>0?`🔥 ${streak} day streak!`:'';
+  const{data:ex}=await sb.getMyResult(CU.classCode,CU.username,td());
+  if(ex){stopTimer();restoreGame(ex,word.toUpperCase());return;}
+  GS={word:word.toUpperCase(),guesses:[],cur:'',over:false,won:false,keys:{}};
+  document.getElementById('result-box').style.display='none';
+  document.getElementById('timer-bar').style.display='flex';
+  startTimer();document.addEventListener('keydown',handleKD);
+}
+
+async function calcStreak(){
+  const{data:all}=await sb.getAllResults(CU.classCode);
+  if(!all)return 0;
+  const mine=all.filter(r=>r.student_username===CU.username&&r.won).map(r=>r.play_date).sort().reverse();
+  if(!mine.length)return 0;
+  let streak=0,check=td();
+  if(mine[0]!==td()){const y=new Date();y.setDate(y.getDate()-1);check=y.toISOString().slice(0,10);if(mine[0]!==check)return 0;}
+  for(const d of mine){if(d===check){streak++;const dt=new Date(check+'T12:00:00');dt.setDate(dt.getDate()-1);check=dt.toISOString().slice(0,10);}else break;}
+  return streak;
+}
+
+function startTimer(){timerSecs=0;updTimer();timerIv=setInterval(()=>{timerSecs++;updTimer();},1000);}
+function stopTimer(){clearInterval(timerIv);}
+function updTimer(){document.getElementById('timer-disp').textContent=fmtT(timerSecs);}
+
+function restoreGame(r,word){
+  GS={word,guesses:r.guesses,cur:'',over:true,won:r.won,keys:{}};
+  r.guesses.forEach((g,row)=>{
+    const ev=evalG(g,word);
+    ev.forEach((st,col)=>{setTile(row,col,g[col],st);const k=g[col];
+      if(st==='correct')GS.keys[k]='correct';
+      else if(st==='present'&&GS.keys[k]!=='correct')GS.keys[k]='present';
+      else if(!GS.keys[k])GS.keys[k]=st;});
+  });
+  updKB();document.getElementById('timer-bar').style.display='none';
+  showResult(r.won,r.guess_count,word,r.solve_time_seconds,false);
+}
+
+function buildGrid(){
+  const g=document.getElementById('grid');g.innerHTML='';
+  for(let r=0;r<ROWS;r++){const row=document.createElement('div');row.className='grid-row';row.id=`row-${r}`;
+    for(let c=0;c<COLS;c++){const t=document.createElement('div');t.className='tile';t.id=`t-${r}-${c}`;row.appendChild(t);}g.appendChild(row);}
+}
+function setTile(r,c,l,st){const t=document.getElementById(`t-${r}-${c}`);t.textContent=l;t.className=`tile ${st||'filled'}`;}
+function buildKeyboard(){
+  const rows=[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['ENTER','Z','X','C','V','B','N','M','⌫']];
+  const kb=document.getElementById('keyboard');kb.innerHTML='';
+  rows.forEach(row=>{const div=document.createElement('div');div.className='key-row';
+    row.forEach(k=>{const btn=document.createElement('button');btn.className='key'+(k==='ENTER'||k==='⌫'?' wide':'');btn.textContent=k;btn.id=`key-${k}`;btn.addEventListener('click',()=>handleKey(k));div.appendChild(btn);});kb.appendChild(div);});
+}
+function updKB(){Object.entries(GS.keys).forEach(([k,st])=>{const el=document.getElementById(`key-${k}`);if(el)el.className=`key${(k==='ENTER'||k==='⌫')?' wide':''} ${st}`;});}
+function handleKD(e){if(GS?.over||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key==='Enter')handleKey('ENTER');else if(e.key==='Backspace')handleKey('⌫');else if(/^[a-zA-Z]$/.test(e.key))handleKey(e.key.toUpperCase());}
+function handleKey(key){
+  if(!GS||GS.over)return;const row=GS.guesses.length;
+  if(key==='⌫'){if(GS.cur.length>0){GS.cur=GS.cur.slice(0,-1);const t=document.getElementById(`t-${row}-${GS.cur.length}`);t.textContent='';t.className='tile';}return;}
+  if(key==='ENTER'){if(GS.cur.length<COLS){shakeRow(row);toast('Not enough letters!');return;}submitGuess();return;}
+  if(GS.cur.length<COLS){GS.cur+=key;const col=GS.cur.length-1;const t=document.getElementById(`t-${row}-${col}`);t.textContent=key;t.className='tile filled';}
+}
+function evalG(guess,word){
+  const res=Array(COLS).fill('absent'),wa=word.split(''),ga=guess.split(''),used=Array(COLS).fill(false);
+  ga.forEach((l,i)=>{if(l===wa[i]){res[i]='correct';used[i]=true;}});
+  ga.forEach((l,i)=>{if(res[i]==='correct')return;const j=wa.findIndex((wl,wi)=>wl===l&&!used[wi]);if(j!==-1){res[i]='present';used[j]=true;}});
+  return res;
+}
+async function submitGuess(){
+  const row=GS.guesses.length,guess=GS.cur,word=GS.word,ev=evalG(guess,word);
+  ev.forEach((st,col)=>{const t=document.getElementById(`t-${row}-${col}`);setTimeout(()=>{t.classList.add('reveal');setTimeout(()=>{t.className=`tile ${st}`;},250);},col*120);});
+  ev.forEach((st,i)=>{const k=guess[i],cur=GS.keys[k];if(st==='correct')GS.keys[k]='correct';else if(st==='present'&&cur!=='correct')GS.keys[k]='present';else if(!cur)GS.keys[k]='absent';});
+  GS.guesses.push(guess);GS.cur='';
+  const won=ev.every(s=>s==='correct'),cnt=GS.guesses.length;
+  setTimeout(async()=>{
+    updKB();
+    if(won||cnt>=ROWS){
+      GS.over=true;GS.won=won;stopTimer();document.removeEventListener('keydown',handleKD);
+      await sb.saveResult(CU.classCode,CU.name,CU.username,CU.period,GS.guesses,won,cnt,timerSecs);
+      setTimeout(()=>showResult(won,cnt,word,timerSecs,won),300);
+    }
+  },COLS*120+300);
+}
+function showResult(won,cnt,word,secs,animate){
+  const box=document.getElementById('result-box');box.style.display='';
+  document.getElementById('r-word').textContent=word;
+  document.getElementById('timer-bar').style.display='none';
+  if(won){
+    const emojis=['🎯','🔥','⭐','🏆','😎','🥳'],msgs=['Genius!','Amazing!','Excellent!','Great job!','Nice work!','Phew!'],i=Math.min(cnt-1,5);
+    document.getElementById('r-emoji').textContent=emojis[i];document.getElementById('r-title').textContent=msgs[i];document.getElementById('r-title').style.color='var(--green)';
+    if(animate)confetti();
+  }else{document.getElementById('r-emoji').textContent='😔';document.getElementById('r-title').textContent='Better luck tomorrow!';document.getElementById('r-title').style.color='var(--gray)';}
+  document.getElementById('r-stats').innerHTML=`<div class="rstat"><div class="rsn">${won?cnt:'X'}</div><div class="rsl">Guesses</div></div><div class="rstat"><div class="rsn">${fmtT(secs)}</div><div class="rsl">Time</div></div>`;
+  box.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function shakeRow(r){const el=document.getElementById(`row-${r}`);el.classList.add('shake');setTimeout(()=>el.classList.remove('shake'),400);}
+function confetti(){
+  const colors=['#6aaa64','#c9b458','#4f46e5','#f59e0b','#ec4899','#06b6d4'];
+  for(let i=0;i<120;i++){const el=document.createElement('div');el.className='confetti-piece';
+    el.style.cssText=`left:${Math.random()*100}vw;background:${colors[Math.floor(Math.random()*colors.length)]};width:${6+Math.random()*8}px;height:${6+Math.random()*8}px;animation-duration:${2+Math.random()*2}s;animation-delay:${Math.random()*.5}s;border-radius:${Math.random()>.5?'50%':'2px'}`;
+    document.body.appendChild(el);setTimeout(()=>el.remove(),(4+Math.random()*2)*1000);}
+}
+
+// ============ TEACHER ============
+async function initTeacher(){
+  document.getElementById('t-sub').textContent=`Class Code: ${CU.classCode} • ${fmtD(td())}`;
+  await refreshDash();
+  clearInterval(window._tRefresh);window._tRefresh=setInterval(refreshDash,30000);
+}
+async function refreshDash(){
+  const[{data:word},{data:res}]=await Promise.all([sb.getWord(CU.classCode,td()),sb.getResults(CU.classCode,td())]);
+  _todayWord=word;_todayResults=res||[];
+  document.getElementById('word-in').value=word||'';
+  if(word)showWTiles(word);
+  buildPerTabs(_todayResults);renderToday();
+  if(actPanel==='history')loadHistory();
+  if(actPanel==='students')loadStudents();
+}
+function showPanel(name){
+  actPanel=name;
+  document.querySelectorAll('.t-nav button').forEach((b,i)=>b.classList.toggle('active',['today','history','students'][i]===name));
+  document.querySelectorAll('.t-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(`panel-${name}`).classList.add('active');
+  if(name==='history')loadHistory();if(name==='students')loadStudents();
+}
+function buildPerTabs(res){
+  const counts={};res.forEach(r=>{const p=r.period||1;counts[p]=(counts[p]||0)+1;});
+  const periods=Object.keys(counts).map(Number).sort((a,b)=>a-b);
+  document.getElementById('per-tabs').innerHTML=`<button class="per-tab ${actPer==='all'?'active':''}" onclick="switchPer('all')">All <span class="cnt">${res.length}</span></button>${periods.map(p=>`<button class="per-tab ${actPer===p?'active':''}" onclick="switchPer(${p})">Period ${p} <span class="cnt">${counts[p]}</span></button>`).join('')}`;
+}
+function switchPer(p){actPer=p;buildPerTabs(_todayResults);renderToday();}
+function renderToday(){
+  const res=actPer==='all'?_todayResults:_todayResults.filter(r=>(r.period||1)===actPer);
+  const total=res.length,won=res.filter(r=>r.won).length;
+  const avgG=won>0?(res.filter(r=>r.won).reduce((s,r)=>s+r.guess_count,0)/won).toFixed(1):'--';
+  const timers=res.filter(r=>r.won&&r.solve_time_seconds);
+  const avgT=timers.length?fmtT(Math.round(timers.reduce((s,r)=>s+r.solve_time_seconds,0)/timers.length)):'--';
+  const lbl=actPer==='all'?'Total':'Period '+actPer;
+  document.getElementById('today-stats').innerHTML=`
+    <div class="sc"><div class="sn">${total}</div><div class="sl">${lbl}</div></div>
+    <div class="sc"><div class="sn" style="color:var(--green)">${won}</div><div class="sl">Solved ✓</div></div>
+    <div class="sc"><div class="sn" style="color:#ef4444">${total-won}</div><div class="sl">Unsolved</div></div>
+    <div class="sc"><div class="sn">${avgG}</div><div class="sl">Avg Guesses</div></div>
+    <div class="sc"><div class="sn">${avgT}</div><div class="sl">Avg Time</div></div>`;
+  const tbody=document.getElementById('today-body'),empty=document.getElementById('today-empty');
+  if(!res.length){tbody.innerHTML='';empty.style.display='';return;}empty.style.display='none';
+  const sorted=[...res].sort((a,b)=>{if(a.won&&!b.won)return -1;if(!a.won&&b.won)return 1;if(a.won&&b.won)return a.guess_count-b.guess_count;return 0;});
+  tbody.innerHTML=sorted.map(r=>{
+    const st=r.won?`<span class="badge bg">✓ ${r.guess_count} guesses</span>`:`<span class="badge br">✗ Not Solved</span>`;
+    const dots=(r.guesses||[]).map(g=>`<div class="dots">${evalG(g.toUpperCase(),(_todayWord||'').toUpperCase()).map(s=>`<div class="dot ${s}"></div>`).join('')}</div>`).join('');
+    const pb=actPer==='all'?`<span style="font-size:.75rem;color:#aaa;font-weight:700;margin-left:5px">P${r.period||1}</span>`:'';
+    return`<tr><td><strong>${r.student_name}</strong>${pb}</td><td>${st}</td><td>${r.guess_count}/6</td><td>${fmtT(r.solve_time_seconds)}</td><td><div style="display:flex;flex-direction:column;gap:2px">${dots}</div></td></tr>`;
+  }).join('');
+}
+async function loadHistory(){
+  const[{data:allRes},{data:allWords}]=await Promise.all([sb.getAllResults(CU.classCode),sb.allWords(CU.classCode)]);
+  const wmap={};(allWords||[]).forEach(w=>wmap[w.play_date]=w.word);
+  const byDate={};(allRes||[]).forEach(r=>{if(!byDate[r.play_date])byDate[r.play_date]=[];byDate[r.play_date].push(r);});
+  const dates=Object.keys(byDate).sort().reverse();
+  if(!dates.length){document.getElementById('hist-content').innerHTML='<div class="empty"><div>📅</div><div style="font-weight:700;color:#999">No history yet</div></div>';return;}
+  document.getElementById('hist-content').innerHTML=dates.map(date=>{
+    const dr=byDate[date],word=wmap[date]||'?',won=dr.filter(r=>r.won).length;
+    return`<div class="hist-grp"><div class="hist-lbl">${fmtDs(date)}<span class="hist-chip">${word}</span><span style="font-size:.82rem;color:#888;font-weight:600">${won}/${dr.length} solved</span></div>
+    <div class="tw"><table><thead><tr><th>Name</th><th>Period</th><th>Status</th><th>Guesses</th><th>Time</th></tr></thead>
+    <tbody>${[...dr].sort((a,b)=>{if(a.won&&!b.won)return -1;if(!a.won&&b.won)return 1;return a.guess_count-b.guess_count;}).map(r=>`<tr><td><strong>${r.student_name}</strong></td><td>P${r.period||1}</td><td>${r.won?`<span class="badge bg">✓ Solved</span>`:`<span class="badge br">✗</span>`}</td><td>${r.guess_count}/6</td><td>${fmtT(r.solve_time_seconds)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  }).join('');
+}
+async function loadStudents(){
+  const[{data:stus},{data:allRes}]=await Promise.all([sb.allStudents(CU.classCode),sb.getAllResults(CU.classCode)]);
+  _stuCache={stus,allRes};
+  if(!stus||!stus.length){document.getElementById('stu-content').innerHTML='<div class="empty"><div>👩‍🎓</div><div style="font-weight:700;color:#999">No students yet</div></div>';return;}
+  const counts={};stus.forEach(s=>{const p=s.period||1;counts[p]=(counts[p]||0)+1;});
+  const periods=Object.keys(counts).map(Number).sort((a,b)=>a-b);
+  document.getElementById('stu-per-tabs').innerHTML=`<button class="per-tab ${stuActPer==='all'?'active':''}" onclick="switchStuPer('all')">All <span class="cnt">${stus.length}</span></button>${periods.map(p=>`<button class="per-tab ${stuActPer===p?'active':''}" onclick="switchStuPer(${p})">Period ${p} <span class="cnt">${counts[p]}</span></button>`).join('')}`;
+  const filtered=stuActPer==='all'?stus:stus.filter(s=>(s.period||1)===stuActPer);
+  document.getElementById('stu-content').innerHTML=filtered.map(s=>{
+    const mine=(allRes||[]).filter(r=>r.student_username===s.username);
+    const played=mine.length,won=mine.filter(r=>r.won).length,wr=played?Math.round(won/played*100):0;
+    const avgG=won>0?(mine.filter(r=>r.won).reduce((a,r)=>a+r.guess_count,0)/won).toFixed(1):'--';
+    const streak=calcStreakFrom(mine);
+    return`<div class="stu-card" onclick="showModal('${s.username}')"><div class="stu-hdr"><span class="sname">👤 ${s.display_name}</span><span class="sper">Period ${s.period||1}</span></div>
+    <div class="mini-stats"><div class="ms"><div class="mn">${played}</div><div class="ml">Played</div></div><div class="ms"><div class="mn" style="color:var(--green)">${wr}%</div><div class="ml">Win %</div></div><div class="ms"><div class="mn">${avgG}</div><div class="ml">Avg Guesses</div></div><div class="ms"><div class="mn" style="color:#f59e0b">${streak>0?'🔥'+streak:'—'}</div><div class="ml">Streak</div></div></div></div>`;
+  }).join('');
+}
+function switchStuPer(p){stuActPer=p;loadStudents();}
+function calcStreakFrom(res){
+  const won=res.filter(r=>r.won).map(r=>r.play_date).sort().reverse();if(!won.length)return 0;
+  let streak=0,check=td();
+  if(won[0]!==td()){const y=new Date();y.setDate(y.getDate()-1);check=y.toISOString().slice(0,10);if(won[0]!==check)return 0;}
+  for(const d of won){if(d===check){streak++;const dt=new Date(check+'T12:00:00');dt.setDate(dt.getDate()-1);check=dt.toISOString().slice(0,10);}else break;}
+  return streak;
+}
+async function showModal(username){
+  document.getElementById('modal').style.display='flex';
+  const{stus,allRes}=_stuCache||{};
+  const s=stus?.find(x=>x.username===username);
+  const mine=(allRes||[]).filter(r=>r.student_username===username).sort((a,b)=>b.play_date.localeCompare(a.play_date));
+  const{data:allWords}=await sb.allWords(CU.classCode);
+  const wmap={};(allWords||[]).forEach(w=>wmap[w.play_date]=w.word);
+  document.getElementById('modal-title').textContent=`📊 ${s?.display_name||username}`;
+  const totalWon=mine.filter(r=>r.won).length;
+  document.getElementById('modal-body').innerHTML=`<div style="margin-bottom:16px;color:#666;font-size:.9rem">Period ${s?.period||1} • ${mine.length} games played • ${totalWon} wins (${mine.length?Math.round(totalWon/mine.length*100):0}% win rate)</div>
+  ${mine.length?mine.map(r=>`<div class="hmr"><span class="hmd">${fmtDs(r.play_date)}</span><span class="hmw">${wmap[r.play_date]||'?'}</span>${r.won?`<span class="badge bg">✓ ${r.guess_count}</span>`:`<span class="badge br">✗</span>`}<span style="font-size:.82rem;color:#aaa;margin-left:auto">${fmtT(r.solve_time_seconds)}</span></div>`).join(''):'<div style="color:#bbb;text-align:center;padding:20px">No games yet</div>'}`;
+}
+function closeModal(e){if(e.target.id==='modal')document.getElementById('modal').style.display='none';}
+function showWTiles(word){
+  document.getElementById('word-disp').style.display='';
+  const tiles=document.getElementById('word-tiles');tiles.innerHTML='';
+  word.toUpperCase().split('').forEach(l=>{const t=document.createElement('div');t.className='wt';t.textContent=l;tiles.appendChild(t);});
+}
+async function setWord(){
+  const input=document.getElementById('word-in').value.trim().toUpperCase(),err=document.getElementById('word-err');
+  if(input.length!==5){err.textContent='Word must be exactly 5 letters!';return;}
+  if(!/^[A-Z]+$/.test(input)){err.textContent='Letters only!';return;}
+  setLoad('sw-btn',true,'Set Word');
+  const{error}=await sb.setWord(CU.classCode,input);
+  setLoad('sw-btn',false,'Set Word');
+  if(error){err.textContent='Could not save — check connection.';return;}
+  err.textContent='';_todayWord=input;showWTiles(input);toast(`Word set to "${input}"! 🟩`,2000);
+}
+function exportCSV(){
+  const res=actPer==='all'?_todayResults:_todayResults.filter(r=>(r.period||1)===actPer);
+  if(!res.length){toast('No results to export!');return;}
+  const rows=[['Name','Username','Period','Date','Solved','Guesses','Time (s)','Word']];
+  res.forEach(r=>rows.push([r.student_name,r.student_username||'',r.period||1,r.play_date,r.won?'Yes':'No',r.guess_count,r.solve_time_seconds||'',_todayWord||'']));
+  const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=`classwordle_${td()}.csv`;a.click();
+  toast('CSV downloaded! ⬇',2000);
+}
+
+// ============ INIT ============
+window.addEventListener('DOMContentLoaded',()=>{
+  if(SUPABASE_URL==='YOUR_SUPABASE_URL')toast('⚠️ Supabase not configured yet!',5000);
+  ['si-user','si-pass','si-code'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')studentSignIn();}));
+  ['r-first','r-last','r-user','r-pass','r-code'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')studentReg();}));
+  ['t-name','t-code','t-pass'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')teacherLogin();}));
+  ['word-in','r-code','si-code','t-code'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',function(){this.value=this.value.toUpperCase();});});
+});
+</script>
+</body>
+</html>
 
