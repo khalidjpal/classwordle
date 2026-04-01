@@ -271,9 +271,17 @@ const sb={
   async mkClass(c,n,p){return this.q('classes',{method:'POST',prefer:'return=minimal',body:{code:c,teacher_name:n,teacher_password:p}});},
   async getWord(c,d){const r=await this.q(`daily_words?class_code=eq.${E(c)}&play_date=eq.${d}&select=word`);return{data:r.data?.[0]?.word||null,error:r.error};},
   async setWord(c,w){return this.q('daily_words',{method:'POST',prefer:'resolution=merge-duplicates,return=minimal',body:{class_code:c,word:w,play_date:td()}});},
-  async getResults(c,d){return this.q(`results?class_code=eq.${E(c)}&play_date=eq.${d||td()}&select=*&order=played_at.asc`);},
+  async getResults(c,d){
+    const r=await this.q(`results?class_code=eq.${E(c)}&play_date=eq.${d||td()}&select=*&order=played_at.asc`);
+    if(r.error)console.error('getResults error:',r.error);
+    return r;
+  },
   async getMyResult(c,n,d){const r=await this.q(`results?class_code=eq.${E(c)}&student_name=eq.${E(n)}&play_date=eq.${d||td()}&select=*`);return{data:r.data?.[0]||null,error:r.error};},
-  async saveResult(c,n,p,g,w,cnt){return this.q('results',{method:'POST',prefer:'resolution=ignore-duplicates,return=minimal',body:{class_code:c,student_name:n,period:p,guesses:g,won:w,guess_count:cnt,play_date:td()}});}
+  async saveResult(c,n,p,g,w,cnt){
+    const r=await this.q('results',{method:'POST',prefer:'resolution=merge-duplicates,return=minimal',body:{class_code:c,student_name:n,period:p,guesses:g,won:w,guess_count:cnt,play_date:td()}});
+    if(r.error)console.error('saveResult error:',r.error);
+    return r;
+  }
 };
 const E=s=>encodeURIComponent(s);
 function td(){return new Date().toISOString().slice(0,10);}
@@ -435,14 +443,19 @@ function confetti(){
 async function initTeacher(){
   document.getElementById('t-sub').textContent=`Class Code: ${CU.classCode} • ${fmtD(td())}`;
   await refreshDash();
-  clearInterval(window._tRefresh);window._tRefresh=setInterval(refreshDash,30000);
+  clearInterval(window._tRefresh);window._tRefresh=setInterval(refreshDash,10000);
 }
 async function refreshDash(){
-  const[{data:word},{data:res}]=await Promise.all([sb.getWord(CU.classCode,td()),sb.getResults(CU.classCode,td())]);
+  const[{data:word,error:wErr},{data:res,error:rErr}]=await Promise.all([sb.getWord(CU.classCode,td()),sb.getResults(CU.classCode,td())]);
+  if(wErr)console.error('getWord error:',wErr);
+  if(rErr)console.error('getResults error:',rErr);
   _word=word;_results=res||[];
   document.getElementById('word-in').value=word||'';
   if(word)showWTiles(word);
   buildPerTabs(_results);renderResults();
+  // Show last updated time
+  const now=new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  document.getElementById('t-sub').textContent=`Class Code: ${CU.classCode} • ${fmtD(td())} • Updated ${now}`;
 }
 function buildPerTabs(res){
   const counts={};res.forEach(r=>{const p=r.period||1;counts[p]=(counts[p]||0)+1;});
