@@ -869,9 +869,19 @@ tr.att-row.missing td { background: #fce4ec; }
   <!-- TODAY PANEL -->
   <div id="panel-today" class="dash-panel active">
     <div class="word-setter">
-      <h3>Set Today's Word</h3>
+      <h3>Today's Word</h3>
       <input id="word-input" type="text" maxlength="5" placeholder="5-letter word">
-      <button onclick="setWord()">Set Word</button>
+      <button id="set-word-btn" onclick="setWord()">Set Word</button>
+      <button id="change-word-btn" onclick="showChangeWord()" style="display:none;background:var(--accent);">Change Word</button>
+    </div>
+    <div id="change-word-area" style="display:none;width:100%;max-width:900px;background:#fff3e0;border-radius:14px;padding:16px 20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.06);">
+      <h3 style="font-size:.95rem;color:#e65100;margin-bottom:8px;">Change Today's Word</h3>
+      <p style="font-size:.85rem;color:#888;margin-bottom:10px;">Previous student submissions will be kept. Students who haven't played yet will get the new word.</p>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+        <input id="new-word-input" type="text" maxlength="5" placeholder="New 5-letter word" style="flex:1;min-width:140px;padding:10px 14px;border:2px solid #ffe0b2;border-radius:10px;font-size:1rem;font-family:'Nunito',sans-serif;text-transform:uppercase;">
+        <button onclick="changeWord()" style="padding:10px 24px;border:none;border-radius:10px;background:#e65100;color:#fff;font-family:'Fredoka One',cursive;cursor:pointer;">Save New Word</button>
+        <button onclick="hideChangeWord()" style="padding:10px 24px;border:2px solid var(--light-gray);border-radius:10px;background:#fff;font-family:'Fredoka One',cursive;cursor:pointer;color:#888;">Cancel</button>
+      </div>
     </div>
 
     <div class="period-tabs" id="period-tabs">
@@ -1398,6 +1408,12 @@ async function loadDashboard() {
     if (words.length) {
       document.getElementById('word-input').value = words[0].word.toUpperCase();
       document.getElementById('word-input').disabled = true;
+      document.getElementById('set-word-btn').style.display = 'none';
+      document.getElementById('change-word-btn').style.display = '';
+    } else {
+      document.getElementById('word-input').disabled = false;
+      document.getElementById('set-word-btn').style.display = '';
+      document.getElementById('change-word-btn').style.display = 'none';
     }
 
     // Load results
@@ -1459,7 +1475,7 @@ function nameSimilarity(a, b) {
 }
 
 function nameMatch(a, b) {
-  return nameSimilarity(a, b) >= 0.6;
+  return nameSimilarity(a, b) >= 0.75;
 }
 
 // Find best fuzzy match from roster for a given name. Returns { name, score } or null.
@@ -1473,7 +1489,7 @@ function findRosterMatch(submittedName, roster) {
       best = rosterName;
     }
   }
-  return bestScore >= 0.6 ? { name: best, score: bestScore } : null;
+  return bestScore >= 0.75 ? { name: best, score: bestScore } : null;
 }
 
 function renderDashboard(results) {
@@ -1528,7 +1544,7 @@ function renderDashboard(results) {
         const rid = r.id || r.student_name.toLowerCase();
         if (claimedResultIds.has(rid)) return;
         const score = nameSimilarity(r.student_name, rosterName);
-        if (score >= 0.6 && score > bestScore) {
+        if (score >= 0.75 && score > bestScore) {
           bestScore = score;
           bestResult = r;
         }
@@ -1620,9 +1636,55 @@ async function setWord() {
     const data = await res.json();
     console.log('[TEACHER] Set word response:', res.status, data);
     document.getElementById('word-input').disabled = true;
+    document.getElementById('set-word-btn').style.display = 'none';
+    document.getElementById('change-word-btn').style.display = '';
     showToast('Word set!');
   } catch (e) {
     showToast('Error setting word');
+  }
+}
+
+function showChangeWord() {
+  document.getElementById('change-word-area').style.display = '';
+  document.getElementById('new-word-input').value = '';
+  document.getElementById('new-word-input').focus();
+}
+
+function hideChangeWord() {
+  document.getElementById('change-word-area').style.display = 'none';
+}
+
+async function changeWord() {
+  const word = document.getElementById('new-word-input').value.trim().toUpperCase();
+  if (word.length !== 5) { showToast('Word must be 5 letters'); return; }
+  if (!/^[A-Z]{5}$/.test(word)) { showToast('Letters only'); return; }
+
+  try {
+    console.log('[TEACHER] Changing word to:', word);
+    // Upsert — overwrites the existing word for today
+    const res = await sb('daily_words', {
+      method: 'POST',
+      body: JSON.stringify({
+        class_code: teacher.code,
+        play_date: todayStr(),
+        word: word.toLowerCase()
+      }),
+      prefer: 'resolution=merge-duplicates,return=representation'
+    });
+    if (res.status >= 400) {
+      const err = await res.json();
+      showToast('Error: ' + (err.message || 'Could not change word'));
+      return;
+    }
+    const data = await res.json();
+    console.log('[TEACHER] Change word response:', res.status, data);
+
+    document.getElementById('word-input').value = word;
+    hideChangeWord();
+    showToast(`Word changed to ${word}. Previous submissions are still saved.`);
+  } catch (e) {
+    console.error('[TEACHER] Change word error:', e);
+    showToast('Error changing word');
   }
 }
 
@@ -1776,7 +1838,7 @@ function buildPeriodSections(results, word) {
           const rid = (r.id || r.student_name).toString().toLowerCase();
           if (claimedResultIds.has(rid)) return;
           const score = nameSimilarity(r.student_name, rosterName);
-          if (score >= 0.6 && score > bestScore) {
+          if (score >= 0.75 && score > bestScore) {
             bestScore = score;
             bestResult = r;
           }
