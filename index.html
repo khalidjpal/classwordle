@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClassWordle</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --green: #6aaa64;
+  --yellow: #c9b458;
+  --gray: #787c7e;
+  --dark-gray: #3a3a3c;
+  --light-gray: #d3d6da;
+  --bg: #f7f8fc;
+  --card-bg: #ffffff;
+  --text: #1a1a2e;
+  --accent: #4361ee;
+  --accent-light: #e8ecff;
+}
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+h1, h2, h3 { font-family: 'Fredoka One', cursive; }
+
+/* ── SCREENS ── */
+.screen { display: none; min-height: 100vh; }
+.screen.active { display: flex; flex-direction: column; align-items: center; }
+
+/* ── ROLE SELECT ── */
+#role-screen {
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+#role-screen h1 { color: #fff; font-size: 2.8rem; text-shadow: 2px 2px 8px rgba(0,0,0,.2); }
+#role-screen .subtitle { color: rgba(255,255,255,.85); font-size: 1.1rem; margin-bottom: 20px; }
+.role-buttons { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.role-btn {
+  background: #fff;
+  border: none;
+  border-radius: 16px;
+  padding: 30px 40px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.3rem;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s;
+  box-shadow: 0 4px 15px rgba(0,0,0,.1);
+  min-width: 180px;
+}
+.role-btn:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,.15); }
+.role-btn .icon { font-size: 2.5rem; display: block; margin-bottom: 8px; }
+
+/* ── LOGIN FORMS ── */
+#student-login, #teacher-login {
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+#teacher-login { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+
+.login-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.12);
+}
+.login-card h2 { text-align: center; margin-bottom: 24px; font-size: 1.6rem; color: var(--text); }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-weight: 700; margin-bottom: 6px; font-size: .9rem; color: #555; }
+.form-group input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid var(--light-gray);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-family: 'Nunito', sans-serif;
+  transition: border-color .2s;
+}
+.form-group input:focus { outline: none; border-color: var(--accent); }
+
+.password-wrapper { position: relative; }
+.password-wrapper input { padding-right: 44px; }
+.password-toggle {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #888;
+}
+
+.period-selector { display: flex; gap: 8px; flex-wrap: wrap; }
+.period-btn {
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  border: 2px solid var(--light-gray);
+  background: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all .15s;
+}
+.period-btn.selected { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.submit-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background .2s, transform .1s;
+}
+.submit-btn:hover { background: #3451d1; }
+.submit-btn:active { transform: scale(.97); }
+.back-link {
+  display: inline-block; margin-top: 16px; color: rgba(255,255,255,.9);
+  cursor: pointer; font-weight: 700; text-decoration: underline;
+}
+
+.error-msg {
+  background: #ffe0e0;
+  color: #c0392b;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: .9rem;
+  margin-bottom: 12px;
+  display: none;
+}
+
+/* ── GAME SCREEN ── */
+#game-screen { padding: 10px; background: var(--bg); }
+
+.game-header {
+  width: 100%; max-width: 500px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 4px; margin-bottom: 6px;
+}
+.game-header h1 { font-size: 1.4rem; color: var(--accent); }
+.game-header .player-info { font-size: .85rem; color: #888; }
+
+/* Board */
+.board {
+  display: grid;
+  grid-template-rows: repeat(6, 1fr);
+  gap: 6px;
+  width: 100%; max-width: 340px;
+  margin: 0 auto;
+}
+.row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.tile {
+  width: 100%; aspect-ratio: 1;
+  border: 2px solid var(--light-gray);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.8rem;
+  text-transform: uppercase;
+  color: var(--text);
+  transition: border-color .1s;
+  user-select: none;
+}
+.tile.filled { border-color: #888; animation: pop .1s ease; }
+.tile.flip {
+  animation: flip .5s ease forwards;
+}
+.tile.correct { background: var(--green); color: #fff; border-color: var(--green); }
+.tile.present { background: var(--yellow); color: #fff; border-color: var(--yellow); }
+.tile.absent { background: var(--gray); color: #fff; border-color: var(--gray); }
+
+@keyframes pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@keyframes flip {
+  0% { transform: rotateX(0); }
+  45% { transform: rotateX(90deg); }
+  55% { transform: rotateX(90deg); }
+  100% { transform: rotateX(0); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(4px); }
+}
+.row.shake { animation: shake .4s ease; }
+
+/* Keyboard */
+.keyboard {
+  width: 100%; max-width: 500px;
+  margin-top: 12px;
+  user-select: none;
+}
+.kb-row { display: flex; justify-content: center; gap: 4px; margin-bottom: 5px; }
+.key {
+  height: 52px;
+  min-width: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--light-gray);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: .85rem;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background .15s, color .15s;
+  display: flex; align-items: center; justify-content: center;
+  flex: 1;
+  max-width: 44px;
+}
+.key.wide { max-width: 65px; font-size: .75rem; }
+.key.correct { background: var(--green); color: #fff; }
+.key.present { background: var(--yellow); color: #fff; }
+.key.absent { background: var(--dark-gray); color: #fff; }
+
+/* Message toast */
+.toast-container {
+  position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+  z-index: 1000; display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.toast {
+  background: var(--text);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: .95rem;
+  animation: fadeIn .2s ease;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── RESULT SCREEN ── */
+#result-screen {
+  justify-content: center;
+  padding: 20px;
+  background: var(--bg);
+}
+.result-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 36px;
+  text-align: center;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0,0,0,.1);
+}
+.result-card h2 { font-size: 1.8rem; margin-bottom: 6px; }
+.result-emoji { font-size: 3rem; margin: 10px 0; }
+.result-grid {
+  font-family: monospace;
+  font-size: 1.3rem;
+  line-height: 1.6;
+  margin: 16px 0;
+  letter-spacing: 2px;
+}
+.result-score { font-size: 1.1rem; color: #555; margin-bottom: 16px; }
+.share-btn {
+  padding: 12px 28px;
+  border: none;
+  border-radius: 10px;
+  background: var(--green);
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.share-btn:hover { filter: brightness(1.1); }
+.play-again-btn {
+  padding: 12px 28px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+/* ── TEACHER DASHBOARD ── */
+#teacher-dashboard { padding: 16px; background: var(--bg); }
+
+.dash-header {
+  width: 100%; max-width: 900px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  margin-bottom: 16px;
+}
+.dash-header h1 { font-size: 1.5rem; color: var(--accent); }
+.dash-header .meta { font-size: .85rem; color: #888; }
+
+.word-setter {
+  width: 100%; max-width: 900px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;
+}
+.word-setter h3 { width: 100%; margin-bottom: 4px; font-size: 1rem; }
+.word-setter input {
+  flex: 1; min-width: 140px;
+  padding: 10px 14px;
+  border: 2px solid var(--light-gray);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-family: 'Nunito', sans-serif;
+  text-transform: uppercase;
+}
+.word-setter input:focus { outline: none; border-color: var(--accent); }
+.word-setter button {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px;
+  background: var(--green);
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.period-tabs {
+  width: 100%; max-width: 900px;
+  display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.period-tab {
+  padding: 8px 18px;
+  border: 2px solid var(--light-gray);
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+  transition: all .15s;
+}
+.period-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.stats-row {
+  width: 100%; max-width: 900px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+}
+.stat-card .num { font-family: 'Fredoka One', cursive; font-size: 2rem; color: var(--accent); }
+.stat-card .label { font-size: .8rem; color: #888; font-weight: 700; }
+
+.results-table-wrap {
+  width: 100%; max-width: 900px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+.results-table-wrap h3 { margin-bottom: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th { text-align: left; padding: 10px 8px; border-bottom: 2px solid var(--light-gray); font-size: .8rem; color: #888; text-transform: uppercase; }
+td { padding: 10px 8px; border-bottom: 1px solid #f0f0f0; }
+tr:hover td { background: #fafbff; }
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: .8rem;
+}
+.status-badge.solved { background: #e8f5e9; color: var(--green); }
+.status-badge.failed { background: #fce4ec; color: #c0392b; }
+.dot-progress span {
+  display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 2px;
+}
+
+.export-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  cursor: pointer;
+}
+.dash-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.logout-btn {
+  padding: 10px 24px;
+  border: 2px solid var(--light-gray);
+  border-radius: 10px;
+  background: #fff;
+  font-family: 'Fredoka One', cursive;
+  cursor: pointer;
+  color: #888;
+}
+
+/* ── CONFETTI ── */
+.confetti-piece {
+  position: fixed;
+  width: 10px; height: 10px;
+  top: -10px;
+  z-index: 9999;
+  animation: confettiFall linear forwards;
+}
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 480px) {
+  .tile { font-size: 1.4rem; }
+  .key { height: 46px; font-size: .75rem; }
+  .login-card { padding: 24px 20px; }
+  #role-screen h1 { font-size: 2rem; }
+  .board { max-width: 300px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── ROLE SELECT ─── -->
+<div id="role-screen" class="screen active">
+  <h1>ClassWordle</h1>
+  <p class="subtitle">A Wordle game for your classroom</p>
+  <div class="role-buttons">
+    <button class="role-btn" onclick="showScreen('student-login')">
+      <span class="icon">&#x1F393;</span> Student
+    </button>
+    <button class="role-btn" onclick="showScreen('teacher-login')">
+      <span class="icon">&#x1F4DA;</span> Teacher
+    </button>
+  </div>
+</div>
+
+<!-- ─── STUDENT LOGIN ─── -->
+<div id="student-login" class="screen">
+  <div class="login-card">
+    <h2>Student Login</h2>
+    <div id="student-error" class="error-msg"></div>
+    <div class="form-group">
+      <label>First Name</label>
+      <input id="s-first" type="text" placeholder="Enter first name" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Last Name</label>
+      <input id="s-last" type="text" placeholder="Enter last name" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Class Code</label>
+      <input id="s-code" type="text" placeholder="e.g. MATH101" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Period</label>
+      <div class="period-selector" id="s-period-sel">
+        <button class="period-btn" data-p="1">1</button>
+        <button class="period-btn" data-p="2">2</button>
+        <button class="period-btn" data-p="3">3</button>
+        <button class="period-btn" data-p="4">4</button>
+        <button class="period-btn" data-p="5">5</button>
+      </div>
+    </div>
+    <button class="submit-btn" onclick="studentLogin()">Play!</button>
+  </div>
+  <span class="back-link" onclick="showScreen('role-screen')">&#8592; Back</span>
+</div>
+
+<!-- ─── TEACHER LOGIN ─── -->
+<div id="teacher-login" class="screen">
+  <div class="login-card">
+    <h2>Teacher Login</h2>
+    <div id="teacher-error" class="error-msg"></div>
+    <div class="form-group">
+      <label>Name</label>
+      <input id="t-name" type="text" placeholder="Your name" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Class Code</label>
+      <input id="t-code" type="text" placeholder="e.g. MATH101" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <div class="password-wrapper">
+        <input id="t-pass" type="password" placeholder="Enter password">
+        <button class="password-toggle" onclick="togglePassword()" id="pw-toggle">&#x1F441;</button>
+      </div>
+    </div>
+    <button class="submit-btn" onclick="teacherLogin()">View Dashboard</button>
+  </div>
+  <span class="back-link" onclick="showScreen('role-screen')">&#8592; Back</span>
+</div>
+
+<!-- ─── GAME SCREEN ─── -->
+<div id="game-screen" class="screen">
+  <div class="game-header">
+    <h1>ClassWordle</h1>
+    <span class="player-info" id="player-info"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="keyboard" id="keyboard"></div>
+</div>
+
+<!-- ─── RESULT SCREEN ─── -->
+<div id="result-screen" class="screen">
+  <div class="result-card">
+    <div class="result-emoji" id="result-emoji"></div>
+    <h2 id="result-title"></h2>
+    <p class="result-score" id="result-score"></p>
+    <div class="result-grid" id="result-grid"></div>
+    <button class="share-btn" onclick="copyResult()">&#x1F4CB; Copy Result</button>
+    <br>
+    <button class="play-again-btn" onclick="showScreen('role-screen')">Home</button>
+  </div>
+</div>
+
+<!-- ─── TEACHER DASHBOARD ─── -->
+<div id="teacher-dashboard" class="screen">
+  <div class="dash-header">
+    <div>
+      <h1>ClassWordle Dashboard</h1>
+      <span class="meta" id="dash-meta"></span>
+    </div>
+    <div class="dash-actions">
+      <button class="export-btn" onclick="exportCSV()">&#x1F4E5; Export CSV</button>
+      <button class="logout-btn" onclick="showScreen('role-screen')">Logout</button>
+    </div>
+  </div>
+
+  <div class="word-setter">
+    <h3>Set Today's Word</h3>
+    <input id="word-input" type="text" maxlength="5" placeholder="5-letter word">
+    <button onclick="setWord()">Set Word</button>
+  </div>
+
+  <div class="period-tabs" id="period-tabs">
+    <button class="period-tab active" data-p="all" onclick="filterPeriod('all',this)">All</button>
+    <button class="period-tab" data-p="1" onclick="filterPeriod(1,this)">Period 1</button>
+    <button class="period-tab" data-p="2" onclick="filterPeriod(2,this)">Period 2</button>
+    <button class="period-tab" data-p="3" onclick="filterPeriod(3,this)">Period 3</button>
+    <button class="period-tab" data-p="4" onclick="filterPeriod(4,this)">Period 4</button>
+    <button class="period-tab" data-p="5" onclick="filterPeriod(5,this)">Period 5</button>
+  </div>
+
+  <div class="stats-row" id="stats-row">
+    <div class="stat-card"><div class="num" id="stat-total">0</div><div class="label">Total Played</div></div>
+    <div class="stat-card"><div class="num" id="stat-solved">0</div><div class="label">Solved</div></div>
+    <div class="stat-card"><div class="num" id="stat-unsolved">0</div><div class="label">Unsolved</div></div>
+    <div class="stat-card"><div class="num" id="stat-avg">-</div><div class="label">Avg Guesses</div></div>
+  </div>
+
+  <div class="results-table-wrap">
+    <h3>Student Results</h3>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Period</th><th>Status</th><th>Guesses</th><th>Progress</th></tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// SUPABASE CONFIG — Replace with your values
+// ═══════════════════════════════════════════
+const SUPABASE_URL = 'https://mqglpinynypueqwwbcbw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xZ2xwaW55bnlwdWVxd3diY2J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNTU2MjAsImV4cCI6MjA5MDYzMTYyMH0.FJY4ObmhMvTQueefJ7XAaGE8ckx-G5KzkLHrSVWkRqs';
+const TEACHER_PASSWORD = 'teacher123';
+
+// ═══════════════════════════════════════════
+// VALID WORDS (common 5-letter words for validation)
+// ═══════════════════════════════════════════
+const VALID_WORDS = [
+  'about','above','abuse','actor','acute','admit','adopt','adult','after','again','agent','agree','ahead',
+  'alarm','album','alert','alien','align','alike','alive','alley','allow','alone','along','alter','among',
+  'angel','anger','angle','angry','apart','apple','apply','arena','argue','arise','armor','array','aside',
+  'asset','avoid','awake','award','aware','badge','badly','basic','basis','batch','beach','beard','beast',
+  'begin','being','below','bench','berry','birth','black','blade','blame','blank','blast','blaze','bleed',
+  'blend','bless','blind','block','blood','bloom','blown','board','bonus','boost','booth','bound','brain',
+  'brand','brave','bread','break','breed','brick','bride','brief','bring','broad','broke','brook','brown',
+  'brush','buddy','build','bunch','burst','buyer','cabin','cable','candy','carry','catch','cause','cease',
+  'chain','chair','chaos','charm','chart','chase','cheap','check','cheek','cheer','chess','chest','chief',
+  'child','China','chord','chunk','churn','civil','claim','clash','class','clean','clear','clerk','click',
+  'cliff','climb','cling','clock','clone','close','cloth','cloud','coach','coast','color','comet','comic',
+  'coral','couch','could','count','court','cover','crack','craft','crane','crash','crazy','cream','creek',
+  'crime','crisp','cross','crowd','crown','crude','crush','curve','cycle','daily','dance','dated','dealt',
+  'death','debut','decay','delay','delta','dense','depot','depth','derby','devil','diary','dirty','doubt',
+  'dough','draft','drain','drake','drama','drank','drawn','dream','dress','dried','drift','drill','drink',
+  'drive','drops','drove','drugs','drunk','dryer','dying','eager','eagle','early','earth','eight','elect',
+  'elite','email','empty','enemy','enjoy','enter','entry','equal','error','essay','event','every','exact',
+  'exile','exist','extra','faint','faith','false','fault','feast','fence','ferry','fever','fewer','fiber',
+  'field','fifth','fifty','fight','final','first','fixed','flame','flash','flesh','fleet','float','flood',
+  'floor','flour','fluid','flush','flute','focal','focus','force','forge','forth','forum','fossil','found',
+  'frame','frank','fraud','fresh','front','frost','froze','fruit','fully','fungi','gamma','genre','ghost',
+  'giant','given','glass','globe','gloom','gloss','glove','going','grace','grade','grain','grand','grant',
+  'graph','grasp','grass','grave','great','green','greet','grief','grind','groan','gross','group','grove',
+  'grown','guard','guess','guest','guide','guild','guilt','happy','harsh','haven','heart','heavy','hedge',
+  'hence','herbs','hobby','honey','honor','horse','hotel','house','human','humor','hurry','ideal','image',
+  'imply','index','indie','inner','input','issue','ivory','jewel','joint','joker','judge','juice','juicy',
+  'karma','knife','knock','known','label','labor','lance','large','laser','later','laugh','layer','learn',
+  'lease','least','leave','legal','lemon','level','light','limit','linen','liner','liter','liver','lobby',
+  'local','lodge','logic','login','loose','lover','lower','lucky','lunar','lunch','lyric','magic','major',
+  'maker','manor','maple','march','marry','match','maybe','mayor','medal','media','mercy','merge','merit',
+  'metal','meter','midst','might','minor','minus','mixed','model','money','month','moral','mount','mouse',
+  'mouth','movie','music','naive','nerve','never','newly','night','noble','noise','north','notch','noted',
+  'novel','nurse','ocean','offer','often','olive','onset','opera','orbit','order','other','outer','owned',
+  'owner','oxide','ozone','paint','panel','panic','paper','party','paste','patch','pause','peace','peach',
+  'pearl','pedal','penny','perch','phase','phone','photo','piano','piece','pilot','pinch','pitch','pixel',
+  'pizza','place','plain','plane','plant','plate','plaza','plead','pleas','pluck','plumb','plume','plump',
+  'plunge','plus','point','polar','pools','porch','poser','pound','power','press','price','pride','prime',
+  'prince','print','prior','prize','probe','prone','proof','proud','prove','proxy','psalm','pulse','punch',
+  'pupil','purse','queen','query','quest','queue','quick','quiet','quota','quote','radar','radio','rally',
+  'range','rapid','ratio','reach','react','ready','realm','rebel','refer','reign','relax','relay','renal',
+  'renew','repay','reply','rider','ridge','rifle','right','rigid','rinse','risen','risky','rival','river',
+  'robot','rocky','roger','rogue','roman','rouge','rough','round','route','royal','rugby','ruler','rural',
+  'sadly','saint','salad','salon','sauce','scale','scare','scene','scent','scope','score','scout','scrap',
+  'seed','seize','sense','serve','setup','seven','shade','shake','shall','shame','shape','share','shark',
+  'sharp','shave','sheep','sheer','sheet','shelf','shell','shift','shine','shirt','shock','shoot','shore',
+  'short','shout','sight','sigma','silly','since','sixth','sixty','sized','skill','skull','slate','slave',
+  'sleep','slice','slide','slope','small','smart','smell','smile','smoke','snack','snake','solar','solid',
+  'solve','sorry','sound','south','space','spare','spark','spawn','speak','spear','speed','spend','spent',
+  'spice','spill','spine','spite','split','spoke','sport','spray','squad','stack','staff','stage','stain',
+  'stake','stale','stall','stamp','stand','stare','stark','start','state','stays','steak','steal','steam',
+  'steel','steep','steer','stern','stick','stiff','still','stock','stomp','stone','stood','stool','store',
+  'storm','story','stout','stove','strap','straw','stray','strip','stuck','study','stuff','stump','style',
+  'sugar','suite','sunny','super','surge','swamp','swear','sweep','sweet','swept','swift','swing','swirl',
+  'sword','swore','sworn','syrup','table','taken','taste','teach','tempo','tense','terms','thank','theft',
+  'theme','there','thick','thing','think','third','those','three','threw','throw','thumb','tiger','tight',
+  'timer','tired','title','today','token','total','touch','tough','towel','tower','toxic','trace','track',
+  'trade','trail','train','trait','trash','treat','trend','trial','tribe','trick','tried','troop','truck',
+  'truly','trump','trunk','trust','truth','tumor','tuned','twice','twist','tying','ultra','uncle','under',
+  'unify','union','unite','unity','until','upper','upset','urban','usage','usual','utter','valid','value',
+  'valve','vault','venue','verse','video','vigor','viral','virus','visit','vista','vital','vivid','vocal',
+  'voice','voter','wager','wages','wagon','waist','waste','watch','water','weary','weave','wedge','weigh',
+  'weird','wheat','wheel','where','which','while','white','whole','whose','widow','width','witch','woman',
+  'women','world','worry','worse','worst','worth','would','wound','wrath','write','wrong','wrote','yacht',
+  'yearn','yield','young','yours','youth','zebra'
+];
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let currentScreen = 'role-screen';
+let student = null;    // { first, last, code, period }
+let teacher = null;    // { name, code }
+let targetWord = '';
+let currentRow = 0;
+let currentCol = 0;
+let guesses = [];
+let gameOver = false;
+let activePeriodFilter = 'all';
+let dashboardInterval = null;
+
+// ═══════════════════════════════════════════
+// SUPABASE HELPERS
+// ═══════════════════════════════════════════
+function sb(endpoint, options = {}) {
+  const url = `${SUPABASE_URL}/rest/v1/${endpoint}`;
+  const headers = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json',
+    'Prefer': options.prefer || 'return=representation'
+  };
+  return fetch(url, { headers, ...options });
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  currentScreen = id;
+
+  if (id !== 'teacher-dashboard' && dashboardInterval) {
+    clearInterval(dashboardInterval);
+    dashboardInterval = null;
+  }
+}
+
+// ═══════════════════════════════════════════
+// PERIOD SELECTOR
+// ═══════════════════════════════════════════
+let selectedPeriod = null;
+document.querySelectorAll('#s-period-sel .period-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#s-period-sel .period-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedPeriod = parseInt(btn.dataset.p);
+  });
+});
+
+// ═══════════════════════════════════════════
+// PASSWORD TOGGLE
+// ═══════════════════════════════════════════
+function togglePassword() {
+  const inp = document.getElementById('t-pass');
+  const btn = document.getElementById('pw-toggle');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '\u{1F648}';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '\u{1F441}';
+  }
+}
+
+// ═══════════════════════════════════════════
+// STUDENT LOGIN
+// ═══════════════════════════════════════════
+async function studentLogin() {
+  const first = document.getElementById('s-first').value.trim();
+  const last = document.getElementById('s-last').value.trim();
+  const code = document.getElementById('s-code').value.trim().toUpperCase();
+  const errEl = document.getElementById('student-error');
+
+  if (!first || !last || !code || !selectedPeriod) {
+    errEl.textContent = 'Please fill in all fields and select a period.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  // Check class exists
+  try {
+    const res = await sb(`classes?class_code=eq.${encodeURIComponent(code)}&select=id`);
+    const classes = await res.json();
+    if (!classes.length) {
+      errEl.textContent = 'Class code not found. Ask your teacher for the code.';
+      errEl.style.display = 'block';
+      return;
+    }
+  } catch (e) {
+    errEl.textContent = 'Connection error. Please try again.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // Get today's word
+  try {
+    const res = await sb(`daily_words?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&select=word`);
+    const words = await res.json();
+    if (!words.length) {
+      errEl.textContent = 'No word set for today yet. Ask your teacher!';
+      errEl.style.display = 'block';
+      return;
+    }
+    targetWord = words[0].word.toUpperCase();
+  } catch (e) {
+    errEl.textContent = 'Connection error. Please try again.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // Check if already played
+  try {
+    const res = await sb(`results?class_code=eq.${encodeURIComponent(code)}&first_name=eq.${encodeURIComponent(first)}&last_name=eq.${encodeURIComponent(last)}&period=eq.${selectedPeriod}&play_date=eq.${todayStr()}&select=id`);
+    const existing = await res.json();
+    if (existing.length) {
+      errEl.textContent = "You've already played today!";
+      errEl.style.display = 'block';
+      return;
+    }
+  } catch (e) { /* proceed */ }
+
+  student = { first, last, code, period: selectedPeriod };
+  startGame();
+}
+
+// ═══════════════════════════════════════════
+// TEACHER LOGIN
+// ═══════════════════════════════════════════
+async function teacherLogin() {
+  const name = document.getElementById('t-name').value.trim();
+  const code = document.getElementById('t-code').value.trim().toUpperCase();
+  const pass = document.getElementById('t-pass').value;
+  const errEl = document.getElementById('teacher-error');
+
+  if (!name || !code || !pass) {
+    errEl.textContent = 'Please fill in all fields.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  if (pass !== TEACHER_PASSWORD) {
+    errEl.textContent = 'Incorrect password.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  // Ensure class exists (upsert)
+  try {
+    await sb('classes', {
+      method: 'POST',
+      body: JSON.stringify({ class_code: code, teacher_name: name }),
+      prefer: 'resolution=merge-duplicates,return=representation'
+    });
+  } catch (e) { /* may already exist */ }
+
+  teacher = { name, code };
+  showScreen('teacher-dashboard');
+  document.getElementById('dash-meta').textContent = `${name} \u2022 ${code} \u2022 ${todayStr()}`;
+  loadDashboard();
+  dashboardInterval = setInterval(loadDashboard, 10000);
+}
+
+// ═══════════════════════════════════════════
+// GAME SETUP
+// ═══════════════════════════════════════════
+function startGame() {
+  currentRow = 0;
+  currentCol = 0;
+  guesses = [];
+  gameOver = false;
+
+  document.getElementById('player-info').textContent = `${student.first} ${student.last} \u2022 P${student.period}`;
+
+  // Build board
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  for (let r = 0; r < 6; r++) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.id = `row-${r}`;
+    for (let c = 0; c < 5; c++) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.id = `tile-${r}-${c}`;
+      row.appendChild(tile);
+    }
+    board.appendChild(row);
+  }
+
+  // Build keyboard
+  const kb = document.getElementById('keyboard');
+  kb.innerHTML = '';
+  const rows = [
+    ['Q','W','E','R','T','Y','U','I','O','P'],
+    ['A','S','D','F','G','H','J','K','L'],
+    ['ENTER','Z','X','C','V','B','N','M','DEL']
+  ];
+  rows.forEach(keys => {
+    const row = document.createElement('div');
+    row.className = 'kb-row';
+    keys.forEach(k => {
+      const btn = document.createElement('button');
+      btn.className = 'key' + (k.length > 1 ? ' wide' : '');
+      btn.textContent = k === 'DEL' ? '\u232B' : k;
+      btn.id = `key-${k}`;
+      btn.addEventListener('click', () => handleKey(k));
+      row.appendChild(btn);
+    });
+    kb.appendChild(row);
+  });
+
+  showScreen('game-screen');
+}
+
+// ═══════════════════════════════════════════
+// KEYBOARD INPUT
+// ═══════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (currentScreen !== 'game-screen' || gameOver) return;
+  if (e.key === 'Enter') handleKey('ENTER');
+  else if (e.key === 'Backspace') handleKey('DEL');
+  else if (/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toUpperCase());
+});
+
+function handleKey(key) {
+  if (gameOver) return;
+
+  if (key === 'DEL') {
+    if (currentCol > 0) {
+      currentCol--;
+      const tile = document.getElementById(`tile-${currentRow}-${currentCol}`);
+      tile.textContent = '';
+      tile.classList.remove('filled');
+    }
+    return;
+  }
+
+  if (key === 'ENTER') {
+    if (currentCol < 5) {
+      showToast('Not enough letters');
+      shakeRow(currentRow);
+      return;
+    }
+    submitGuess();
+    return;
+  }
+
+  if (currentCol >= 5) return;
+  const tile = document.getElementById(`tile-${currentRow}-${currentCol}`);
+  tile.textContent = key;
+  tile.classList.add('filled');
+  currentCol++;
+}
+
+function shakeRow(row) {
+  const el = document.getElementById(`row-${row}`);
+  el.classList.add('shake');
+  setTimeout(() => el.classList.remove('shake'), 500);
+}
+
+// ═══════════════════════════════════════════
+// SUBMIT GUESS
+// ═══════════════════════════════════════════
+function submitGuess() {
+  let word = '';
+  for (let c = 0; c < 5; c++) {
+    word += document.getElementById(`tile-${currentRow}-${c}`).textContent;
+  }
+
+  if (!VALID_WORDS.includes(word.toLowerCase()) && word.toUpperCase() !== targetWord) {
+    showToast('Not in word list');
+    shakeRow(currentRow);
+    return;
+  }
+
+  guesses.push(word);
+  revealRow(currentRow, word);
+}
+
+function revealRow(row, word) {
+  const target = targetWord.toUpperCase();
+  const result = Array(5).fill('absent');
+  const targetCounts = {};
+
+  // First pass: correct
+  for (let i = 0; i < 5; i++) {
+    if (word[i] === target[i]) {
+      result[i] = 'correct';
+    } else {
+      targetCounts[target[i]] = (targetCounts[target[i]] || 0) + 1;
+    }
+  }
+  // Second pass: present
+  for (let i = 0; i < 5; i++) {
+    if (result[i] !== 'correct' && targetCounts[word[i]] > 0) {
+      result[i] = 'present';
+      targetCounts[word[i]]--;
+    }
+  }
+
+  // Animate tiles
+  for (let i = 0; i < 5; i++) {
+    const tile = document.getElementById(`tile-${row}-${i}`);
+    const delay = i * 300;
+    setTimeout(() => {
+      tile.classList.add('flip');
+      setTimeout(() => {
+        tile.classList.add(result[i]);
+        updateKeyColor(word[i], result[i]);
+      }, 250);
+    }, delay);
+  }
+
+  // After animation
+  setTimeout(() => {
+    const won = word === target;
+    if (won) {
+      gameOver = true;
+      showToast(['Genius!', 'Magnificent!', 'Impressive!', 'Splendid!', 'Great!', 'Phew!'][row]);
+      launchConfetti();
+      setTimeout(() => showResult(true), 1500);
+      saveResult(true, row + 1);
+    } else if (row === 5) {
+      gameOver = true;
+      showToast(`The word was ${target}`);
+      setTimeout(() => showResult(false), 2000);
+      saveResult(false, 6);
+    } else {
+      currentRow++;
+      currentCol = 0;
+    }
+  }, 5 * 300 + 400);
+}
+
+function updateKeyColor(letter, result) {
+  const key = document.getElementById(`key-${letter}`);
+  if (!key) return;
+  const priority = { correct: 3, present: 2, absent: 1 };
+  const current = key.classList.contains('correct') ? 3 : key.classList.contains('present') ? 2 : key.classList.contains('absent') ? 1 : 0;
+  if (priority[result] > current) {
+    key.classList.remove('correct', 'present', 'absent');
+    key.classList.add(result);
+  }
+}
+
+// ═══════════════════════════════════════════
+// RESULT SCREEN
+// ═══════════════════════════════════════════
+function showResult(won) {
+  document.getElementById('result-emoji').textContent = won ? '\u{1F389}' : '\u{1F614}';
+  document.getElementById('result-title').textContent = won ? 'You got it!' : `The word was ${targetWord}`;
+  document.getElementById('result-score').textContent = won ? `Solved in ${guesses.length}/6 guesses` : 'Better luck next time!';
+  document.getElementById('result-grid').innerHTML = buildEmojiGrid();
+  showScreen('result-screen');
+}
+
+function buildEmojiGrid() {
+  const target = targetWord.toUpperCase();
+  return guesses.map(word => {
+    const targetCounts = {};
+    const result = Array(5).fill('absent');
+    for (let i = 0; i < 5; i++) {
+      if (word[i] === target[i]) result[i] = 'correct';
+      else targetCounts[target[i]] = (targetCounts[target[i]] || 0) + 1;
+    }
+    for (let i = 0; i < 5; i++) {
+      if (result[i] !== 'correct' && targetCounts[word[i]] > 0) {
+        result[i] = 'present';
+        targetCounts[word[i]]--;
+      }
+    }
+    return result.map(r => r === 'correct' ? '\u{1F7E9}' : r === 'present' ? '\u{1F7E8}' : '\u2B1B').join('');
+  }).join('<br>');
+}
+
+function copyResult() {
+  const won = guesses[guesses.length - 1].toUpperCase() === targetWord;
+  const text = `ClassWordle ${todayStr()} ${won ? guesses.length : 'X'}/6\n\n` +
+    document.getElementById('result-grid').textContent.replace(/<br>/g, '\n');
+  navigator.clipboard.writeText(text).then(() => showToast('Copied!')).catch(() => showToast('Copy failed'));
+}
+
+// ═══════════════════════════════════════════
+// SAVE RESULT TO SUPABASE
+// ═══════════════════════════════════════════
+async function saveResult(solved, numGuesses) {
+  const guessData = guesses.map(word => {
+    const target = targetWord.toUpperCase();
+    const result = Array(5).fill('absent');
+    const tc = {};
+    for (let i = 0; i < 5; i++) {
+      if (word[i] === target[i]) result[i] = 'correct';
+      else tc[target[i]] = (tc[target[i]] || 0) + 1;
+    }
+    for (let i = 0; i < 5; i++) {
+      if (result[i] !== 'correct' && tc[word[i]] > 0) { result[i] = 'present'; tc[word[i]]--; }
+    }
+    return { word, result };
+  });
+
+  try {
+    await sb('results', {
+      method: 'POST',
+      body: JSON.stringify({
+        class_code: student.code,
+        first_name: student.first,
+        last_name: student.last,
+        period: student.period,
+        play_date: todayStr(),
+        solved,
+        num_guesses: numGuesses,
+        guess_data: JSON.stringify(guessData)
+      })
+    });
+  } catch (e) {
+    console.error('Failed to save result:', e);
+  }
+}
+
+// ═══════════════════════════════════════════
+// TEACHER DASHBOARD
+// ═══════════════════════════════════════════
+async function loadDashboard() {
+  if (!teacher) return;
+  try {
+    // Load today's word
+    const wRes = await sb(`daily_words?class_code=eq.${encodeURIComponent(teacher.code)}&play_date=eq.${todayStr()}&select=word`);
+    const words = await wRes.json();
+    if (words.length) {
+      document.getElementById('word-input').value = words[0].word.toUpperCase();
+      document.getElementById('word-input').disabled = true;
+    }
+
+    // Load results
+    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(teacher.code)}&play_date=eq.${todayStr()}&select=*&order=last_name.asc,first_name.asc`);
+    const results = await rRes.json();
+
+    renderDashboard(results);
+  } catch (e) {
+    console.error('Dashboard load error:', e);
+  }
+}
+
+function renderDashboard(results) {
+  const filtered = activePeriodFilter === 'all' ? results : results.filter(r => r.period == activePeriodFilter);
+
+  const total = filtered.length;
+  const solved = filtered.filter(r => r.solved).length;
+  const unsolved = total - solved;
+  const solvedResults = filtered.filter(r => r.solved);
+  const avg = solvedResults.length ? (solvedResults.reduce((s, r) => s + r.num_guesses, 0) / solvedResults.length).toFixed(1) : '-';
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-solved').textContent = solved;
+  document.getElementById('stat-unsolved').textContent = unsolved;
+  document.getElementById('stat-avg').textContent = avg;
+
+  const tbody = document.getElementById('results-body');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:30px;">No results yet</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(r => {
+    const status = r.solved
+      ? '<span class="status-badge solved">Solved</span>'
+      : '<span class="status-badge failed">Failed</span>';
+
+    let dots = '';
+    try {
+      const gd = JSON.parse(r.guess_data);
+      dots = gd.map(g => {
+        return g.result.map(c => {
+          const color = c === 'correct' ? 'var(--green)' : c === 'present' ? 'var(--yellow)' : 'var(--gray)';
+          return `<span style="background:${color}"></span>`;
+        }).join('');
+      }).join(' ');
+    } catch (e) { dots = '-'; }
+
+    return `<tr>
+      <td><strong>${r.last_name}, ${r.first_name}</strong></td>
+      <td>P${r.period}</td>
+      <td>${status}</td>
+      <td>${r.solved ? r.num_guesses + '/6' : 'X/6'}</td>
+      <td><div class="dot-progress">${dots}</div></td>
+    </tr>`;
+  }).join('');
+
+  // Store for CSV export
+  window._dashResults = filtered;
+}
+
+function filterPeriod(period, btn) {
+  activePeriodFilter = period;
+  document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  loadDashboard();
+}
+
+async function setWord() {
+  const word = document.getElementById('word-input').value.trim().toUpperCase();
+  if (word.length !== 5) { showToast('Word must be 5 letters'); return; }
+  if (!/^[A-Z]{5}$/.test(word)) { showToast('Letters only'); return; }
+
+  try {
+    await sb('daily_words', {
+      method: 'POST',
+      body: JSON.stringify({
+        class_code: teacher.code,
+        play_date: todayStr(),
+        word: word.toLowerCase()
+      }),
+      prefer: 'resolution=merge-duplicates,return=representation'
+    });
+    document.getElementById('word-input').disabled = true;
+    showToast('Word set!');
+  } catch (e) {
+    showToast('Error setting word');
+  }
+}
+
+// ═══════════════════════════════════════════
+// EXPORT CSV
+// ═══════════════════════════════════════════
+function exportCSV() {
+  const results = window._dashResults || [];
+  if (!results.length) { showToast('No data to export'); return; }
+
+  const rows = [['Last Name', 'First Name', 'Period', 'Status', 'Guesses', 'Date']];
+  results.forEach(r => {
+    rows.push([r.last_name, r.first_name, r.period, r.solved ? 'Solved' : 'Failed', r.num_guesses, r.play_date]);
+  });
+
+  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `classwordle_${teacher.code}_${todayStr()}.csv`;
+  a.click();
+}
+
+// ═══════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════
+function showToast(msg) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 2000);
+}
+
+// ═══════════════════════════════════════════
+// CONFETTI
+// ═══════════════════════════════════════════
+function launchConfetti() {
+  const colors = ['#6aaa64', '#c9b458', '#4361ee', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c'];
+  for (let i = 0; i < 80; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = Math.random() * 100 + 'vw';
+    piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+    piece.style.width = (Math.random() * 8 + 6) + 'px';
+    piece.style.height = (Math.random() * 8 + 6) + 'px';
+    piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    piece.style.animationDuration = (Math.random() * 2 + 1.5) + 's';
+    piece.style.animationDelay = (Math.random() * 0.8) + 's';
+    document.body.appendChild(piece);
+    setTimeout(() => piece.remove(), 4000);
+  }
+}
+</script>
+</body>
+</html>
