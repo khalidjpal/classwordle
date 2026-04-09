@@ -1033,6 +1033,7 @@ async function studentLogin() {
   }
   errEl.style.display = 'none';
 
+  const studentName = `${first} ${last}`;
   console.log('[LOGIN] Attempting login:', { first, last, class_code: code, period: selectedPeriod });
 
   // Get today's word
@@ -1052,6 +1053,32 @@ async function studentLogin() {
     errEl.textContent = 'Connection error. Please try again.';
     errEl.style.display = 'block';
     return;
+  }
+
+  // Check for duplicate: load roster for this period and today's results
+  try {
+    const [rosterRes, resultsRes] = await Promise.all([
+      sb(`rosters?class_code=eq.${encodeURIComponent(code)}&period=eq.${selectedPeriod}&select=student_name`),
+      sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&period=eq.${selectedPeriod}&select=student_name`)
+    ]);
+    const roster = (await rosterRes.json()).map(r => r.student_name);
+    const existingResults = (await resultsRes.json()).map(r => r.student_name);
+
+    if (roster.length) {
+      // Find which roster student this name matches
+      const match = findRosterMatch(studentName, roster);
+      if (match) {
+        // Check if that roster student already submitted
+        const alreadySubmitted = existingResults.some(existing => nameMatch(existing, match.name));
+        if (alreadySubmitted) {
+          errEl.textContent = `${match.name} has already completed today's ClassWordle!`;
+          errEl.style.display = 'block';
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    console.log('[LOGIN] Duplicate check skipped (roster may not exist):', e);
   }
 
   student = { first, last, code, period: selectedPeriod };
@@ -1374,7 +1401,7 @@ async function loadDashboard() {
     }
 
     // Load results
-    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&select=*&order=student_name.asc`);
+    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&select=*`);
     const results = await rRes.json();
     console.log('[DASH] Queried class_code="' + code + '", got', results.length, 'results:', results);
 
@@ -1384,8 +1411,69 @@ async function loadDashboard() {
   }
 }
 
+// ═══════════════════════════════════════════
+// FUZZY NAME MATCHING (Jaro-Winkler)
+// ═══════════════════════════════════════════
+function jaroSimilarity(s1, s2) {
+  if (s1 === s2) return 1;
+  const len1 = s1.length, len2 = s2.length;
+  if (!len1 || !len2) return 0;
+  const matchDist = Math.max(Math.floor(Math.max(len1, len2) / 2) - 1, 0);
+  const s1Matches = Array(len1).fill(false);
+  const s2Matches = Array(len2).fill(false);
+  let matches = 0, transpositions = 0;
+  for (let i = 0; i < len1; i++) {
+    const start = Math.max(0, i - matchDist);
+    const end = Math.min(i + matchDist + 1, len2);
+    for (let j = start; j < end; j++) {
+      if (s2Matches[j] || s1[i] !== s2[j]) continue;
+      s1Matches[i] = true;
+      s2Matches[j] = true;
+      matches++;
+      break;
+    }
+  }
+  if (!matches) return 0;
+  let k = 0;
+  for (let i = 0; i < len1; i++) {
+    if (!s1Matches[i]) continue;
+    while (!s2Matches[k]) k++;
+    if (s1[i] !== s2[k]) transpositions++;
+    k++;
+  }
+  return (matches / len1 + matches / len2 + (matches - transpositions / 2) / matches) / 3;
+}
+
+function jaroWinkler(s1, s2) {
+  const jaro = jaroSimilarity(s1, s2);
+  let prefix = 0;
+  for (let i = 0; i < Math.min(4, s1.length, s2.length); i++) {
+    if (s1[i] === s2[i]) prefix++;
+    else break;
+  }
+  return jaro + prefix * 0.1 * (1 - jaro);
+}
+
+function nameSimilarity(a, b) {
+  return jaroWinkler(a.trim().toLowerCase(), b.trim().toLowerCase());
+}
+
 function nameMatch(a, b) {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
+  return nameSimilarity(a, b) >= 0.6;
+}
+
+// Find best fuzzy match from roster for a given name. Returns { name, score } or null.
+function findRosterMatch(submittedName, roster) {
+  let best = null;
+  let bestScore = 0;
+  for (const rosterName of roster) {
+    const score = nameSimilarity(submittedName, rosterName);
+    if (score > bestScore) {
+      bestScore = score;
+      best = rosterName;
+    }
+  }
+  return bestScore >= 0.6 ? { name: best, score: bestScore } : null;
 }
 
 function renderDashboard(results) {
@@ -1417,10 +1505,10 @@ function renderDashboard(results) {
     return;
   }
 
-  // With roster: show attendance cards by period
+  // With roster: show attendance cards by period in roster order
   const periods = activePeriodFilter === 'all' ? [1,2,3,4,5] : [parseInt(activePeriodFilter)];
   let html = '';
-  const allMatched = new Set();
+  const allMatchedIds = new Set();
 
   periods.forEach(p => {
     const roster = classRoster[p] || [];
@@ -1429,21 +1517,37 @@ function renderDashboard(results) {
 
     html += `<tr><td colspan="5" style="padding:12px 8px 6px;"><strong style="font-family:'Fredoka One',cursive;color:var(--accent);">Period ${p}</strong></td></tr>`;
 
-    // Roster students
-    roster.forEach(name => {
-      const result = pResults.find(r => nameMatch(r.student_name, name));
-      if (result) {
-        allMatched.add(result.id || result.student_name.toLowerCase());
+    // Track which results have been claimed by roster matches (first match wins)
+    const claimedResultIds = new Set();
+
+    // Roster students in original roster order
+    roster.forEach(rosterName => {
+      // Find best fuzzy match among unclaimed results
+      let bestResult = null, bestScore = 0;
+      pResults.forEach(r => {
+        const rid = r.id || r.student_name.toLowerCase();
+        if (claimedResultIds.has(rid)) return;
+        const score = nameSimilarity(r.student_name, rosterName);
+        if (score >= 0.6 && score > bestScore) {
+          bestScore = score;
+          bestResult = r;
+        }
+      });
+
+      if (bestResult) {
+        const rid = bestResult.id || bestResult.student_name.toLowerCase();
+        claimedResultIds.add(rid);
+        allMatchedIds.add(rid);
         html += `<tr class="att-row completed">
-          <td><strong>${name}</strong></td>
+          <td><strong>${rosterName}</strong></td>
           <td>P${p}</td>
-          <td>${result.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
-          <td>${result.won ? result.guess_count + '/6' : 'X/6'}</td>
-          <td><div class="dot-progress">${buildDots(result, todayWord)}</div></td>
+          <td>${bestResult.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
+          <td>${bestResult.won ? bestResult.guess_count + '/6' : 'X/6'}</td>
+          <td><div class="dot-progress">${buildDots(bestResult, todayWord)}</div></td>
         </tr>`;
       } else {
         html += `<tr class="att-row missing">
-          <td><strong>${name}</strong></td>
+          <td><strong>${rosterName}</strong></td>
           <td>P${p}</td>
           <td><span style="color:#c62828;font-weight:700;font-size:.85rem;">Not submitted</span></td>
           <td>-</td>
@@ -1453,13 +1557,10 @@ function renderDashboard(results) {
     });
   });
 
-  // Unrecognized results (not on any roster)
+  // Unrecognized results (not matched to any roster student)
   const unrecognized = filtered.filter(r => {
-    const id = r.id || r.student_name.toLowerCase();
-    if (allMatched.has(id)) return false;
-    // Check if this name is on ANY roster for this period
-    const roster = classRoster[r.period] || [];
-    return !roster.some(name => nameMatch(name, r.student_name));
+    const rid = r.id || r.student_name.toLowerCase();
+    return !allMatchedIds.has(rid);
   });
 
   if (unrecognized.length) {
@@ -1651,7 +1752,7 @@ function togglePeriodSection(el) {
 function buildPeriodSections(results, word) {
   const periods = [1, 2, 3, 4, 5];
   const hasRoster = Object.values(classRoster).some(arr => arr.length > 0);
-  const allMatched = new Set();
+  const allMatchedIds = new Set();
   let html = '';
 
   html += periods.map(p => {
@@ -1662,30 +1763,44 @@ function buildPeriodSections(results, word) {
     const pSolved = pResults.filter(r => r.won).length;
     const pSolvedResults = pResults.filter(r => r.won);
     const pAvg = pSolvedResults.length ? (pSolvedResults.reduce((s, r) => s + r.guess_count, 0) / pSolvedResults.length).toFixed(1) : '-';
-    const submitted = hasRoster ? roster.filter(n => pResults.some(r => nameMatch(r.student_name, n))).length : pResults.length;
-    const rosterTotal = hasRoster ? roster.length : pResults.length;
 
     let rows = '';
+    let submitted = 0;
+    const claimedResultIds = new Set();
+
     if (hasRoster && roster.length) {
-      // Show roster-based attendance
-      roster.forEach(name => {
-        const result = pResults.find(r => nameMatch(r.student_name, name));
-        if (result) {
-          allMatched.add((result.id || result.student_name).toString().toLowerCase());
+      // Show in roster order with fuzzy matching
+      roster.forEach(rosterName => {
+        let bestResult = null, bestScore = 0;
+        pResults.forEach(r => {
+          const rid = (r.id || r.student_name).toString().toLowerCase();
+          if (claimedResultIds.has(rid)) return;
+          const score = nameSimilarity(r.student_name, rosterName);
+          if (score >= 0.6 && score > bestScore) {
+            bestScore = score;
+            bestResult = r;
+          }
+        });
+
+        if (bestResult) {
+          const rid = (bestResult.id || bestResult.student_name).toString().toLowerCase();
+          claimedResultIds.add(rid);
+          allMatchedIds.add(rid);
+          submitted++;
           let dots = '';
           try {
-            const gw = Array.isArray(result.guesses) ? result.guesses : JSON.parse(result.guesses);
+            const gw = Array.isArray(bestResult.guesses) ? bestResult.guesses : JSON.parse(bestResult.guesses);
             dots = buildProgressDots(gw, word);
           } catch (e) { dots = '-'; }
           rows += `<tr class="att-row completed">
-            <td><strong>${name}</strong></td>
-            <td>${result.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
-            <td>${result.won ? result.guess_count + '/6' : 'X/6'}</td>
+            <td><strong>${rosterName}</strong></td>
+            <td>${bestResult.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
+            <td>${bestResult.won ? bestResult.guess_count + '/6' : 'X/6'}</td>
             <td><div class="dot-progress">${dots}</div></td>
           </tr>`;
         } else {
           rows += `<tr class="att-row missing">
-            <td><strong>${name}</strong></td>
+            <td><strong>${rosterName}</strong></td>
             <td><span style="color:#c62828;font-weight:700;font-size:.85rem;">Not submitted</span></td>
             <td>-</td>
             <td>-</td>
@@ -1693,6 +1808,7 @@ function buildPeriodSections(results, word) {
         }
       });
     } else {
+      submitted = pResults.length;
       rows = pResults.map(r => {
         let dots = '';
         try {
@@ -1707,6 +1823,8 @@ function buildPeriodSections(results, word) {
         </tr>`;
       }).join('');
     }
+
+    const rosterTotal = hasRoster && roster.length ? roster.length : pResults.length;
 
     return `<div class="period-section open">
       <div class="period-section-header" onclick="togglePeriodSection(this)">
@@ -1727,10 +1845,8 @@ function buildPeriodSections(results, word) {
   // Unrecognized results
   if (hasRoster) {
     const unrecognized = results.filter(r => {
-      const id = (r.id || r.student_name).toString().toLowerCase();
-      if (allMatched.has(id)) return false;
-      const roster = classRoster[r.period] || [];
-      return !roster.some(n => nameMatch(n, r.student_name));
+      const rid = (r.id || r.student_name).toString().toLowerCase();
+      return !allMatchedIds.has(rid);
     });
     if (unrecognized.length) {
       html += `<div class="unrecognized-section">
@@ -1764,7 +1880,7 @@ async function renderHistoryForDate(dateStr) {
     const word = words.length ? words[0].word.toUpperCase() : null;
 
     // Get results for this date
-    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${dateStr}&select=*&order=period.asc,student_name.asc`);
+    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${dateStr}&select=*`);
     const results = await rRes.json();
 
     if (!word && !results.length) {
