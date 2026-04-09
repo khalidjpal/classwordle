@@ -469,6 +469,10 @@ tr:hover td { background: #fafbff; }
       <input id="s-last" type="text" placeholder="Enter last name" autocomplete="off">
     </div>
     <div class="form-group">
+      <label>Class Code</label>
+      <input id="s-code" type="text" value="PAL" autocomplete="off" style="text-transform:uppercase;">
+    </div>
+    <div class="form-group">
       <label>Period</label>
       <div class="period-selector" id="s-period-sel">
         <button class="period-btn" data-p="1">1</button>
@@ -586,76 +590,7 @@ tr:hover td { background: #fafbff; }
 const SUPABASE_URL = 'https://mqglpinynypueqwwbcbw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xZ2xwaW55bnlwdWVxd3diY2J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNTU2MjAsImV4cCI6MjA5MDYzMTYyMH0.FJY4ObmhMvTQueefJ7XAaGE8ckx-G5KzkLHrSVWkRqs';
 const TEACHER_PASSWORD = '032903';
-
-// ═══════════════════════════════════════════
-// VALID WORDS (common 5-letter words for validation)
-// ═══════════════════════════════════════════
-const VALID_WORDS = [
-  'about','above','abuse','actor','acute','admit','adopt','adult','after','again','agent','agree','ahead',
-  'alarm','album','alert','alien','align','alike','alive','alley','allow','alone','along','alter','among',
-  'angel','anger','angle','angry','apart','apple','apply','arena','argue','arise','armor','array','aside',
-  'asset','avoid','awake','award','aware','badge','badly','basic','basis','batch','beach','beard','beast',
-  'begin','being','below','bench','berry','birth','black','blade','blame','blank','blast','blaze','bleed',
-  'blend','bless','blind','block','blood','bloom','blown','board','bonus','boost','booth','bound','brain',
-  'brand','brave','bread','break','breed','brick','bride','brief','bring','broad','broke','brook','brown',
-  'brush','buddy','build','bunch','burst','buyer','cabin','cable','candy','carry','catch','cause','cease',
-  'chain','chair','chaos','charm','chart','chase','cheap','check','cheek','cheer','chess','chest','chief',
-  'child','China','chord','chunk','churn','civil','claim','clash','class','clean','clear','clerk','click',
-  'cliff','climb','cling','clock','clone','close','cloth','cloud','coach','coast','color','comet','comic',
-  'coral','couch','could','count','court','cover','crack','craft','crane','crash','crazy','cream','creek',
-  'crime','crisp','cross','crowd','crown','crude','crush','curve','cycle','daily','dance','dated','dealt',
-  'death','debut','decay','delay','delta','dense','depot','depth','derby','devil','diary','dirty','doubt',
-  'dough','draft','drain','drake','drama','drank','drawn','dream','dress','dried','drift','drill','drink',
-  'drive','drops','drove','drugs','drunk','dryer','dying','eager','eagle','early','earth','eight','elect',
-  'elite','email','empty','enemy','enjoy','enter','entry','equal','error','essay','event','every','exact',
-  'exile','exist','extra','faint','faith','false','fault','feast','fence','ferry','fever','fewer','fiber',
-  'field','fifth','fifty','fight','final','first','fixed','flame','flash','flesh','fleet','float','flood',
-  'floor','flour','fluid','flush','flute','focal','focus','force','forge','forth','forum','fossil','found',
-  'frame','frank','fraud','fresh','front','frost','froze','fruit','fully','fungi','gamma','genre','ghost',
-  'giant','given','glass','globe','gloom','gloss','glove','going','grace','grade','grain','grand','grant',
-  'graph','grasp','grass','grave','great','green','greet','grief','grind','groan','gross','group','grove',
-  'grown','guard','guess','guest','guide','guild','guilt','happy','harsh','haven','heart','heavy','hedge',
-  'hence','herbs','hobby','honey','honor','horse','hotel','house','human','humor','hurry','ideal','image',
-  'imply','index','indie','inner','input','issue','ivory','jewel','joint','joker','judge','juice','juicy',
-  'karma','knife','knock','known','label','labor','lance','large','laser','later','laugh','layer','learn',
-  'lease','least','leave','legal','lemon','level','light','limit','linen','liner','liter','liver','lobby',
-  'local','lodge','logic','login','loose','lover','lower','lucky','lunar','lunch','lyric','magic','major',
-  'maker','manor','maple','march','marry','match','maybe','mayor','medal','media','mercy','merge','merit',
-  'metal','meter','midst','might','minor','minus','mixed','model','money','month','moral','mount','mouse',
-  'mouth','movie','music','naive','nerve','never','newly','night','noble','noise','north','notch','noted',
-  'novel','nurse','ocean','offer','often','olive','onset','opera','orbit','order','other','outer','owned',
-  'owner','oxide','ozone','paint','panel','panic','paper','party','paste','patch','pause','peace','peach',
-  'pearl','pedal','penny','perch','phase','phone','photo','piano','piece','pilot','pinch','pitch','pixel',
-  'pizza','place','plain','plane','plant','plate','plaza','plead','pleas','pluck','plumb','plume','plump',
-  'plunge','plus','point','polar','pools','porch','poser','pound','power','press','price','pride','prime',
-  'prince','print','prior','prize','probe','prone','proof','proud','prove','proxy','psalm','pulse','punch',
-  'pupil','purse','queen','query','quest','queue','quick','quiet','quota','quote','radar','radio','rally',
-  'range','rapid','ratio','reach','react','ready','realm','rebel','refer','reign','relax','relay','renal',
-  'renew','repay','reply','rider','ridge','rifle','right','rigid','rinse','risen','risky','rival','river',
-  'robot','rocky','roger','rogue','roman','rouge','rough','round','route','royal','rugby','ruler','rural',
-  'sadly','saint','salad','salon','sauce','scale','scare','scene','scent','scope','score','scout','scrap',
-  'seed','seize','sense','serve','setup','seven','shade','shake','shall','shame','shape','share','shark',
-  'sharp','shave','sheep','sheer','sheet','shelf','shell','shift','shine','shirt','shock','shoot','shore',
-  'short','shout','sight','sigma','silly','since','sixth','sixty','sized','skill','skull','slate','slave',
-  'sleep','slice','slide','slope','small','smart','smell','smile','smoke','snack','snake','solar','solid',
-  'solve','sorry','sound','south','space','spare','spark','spawn','speak','spear','speed','spend','spent',
-  'spice','spill','spine','spite','split','spoke','sport','spray','squad','stack','staff','stage','stain',
-  'stake','stale','stall','stamp','stand','stare','stark','start','state','stays','steak','steal','steam',
-  'steel','steep','steer','stern','stick','stiff','still','stock','stomp','stone','stood','stool','store',
-  'storm','story','stout','stove','strap','straw','stray','strip','stuck','study','stuff','stump','style',
-  'sugar','suite','sunny','super','surge','swamp','swear','sweep','sweet','swept','swift','swing','swirl',
-  'sword','swore','sworn','syrup','table','taken','taste','teach','tempo','tense','terms','thank','theft',
-  'theme','there','thick','thing','think','third','those','three','threw','throw','thumb','tiger','tight',
-  'timer','tired','title','today','token','total','touch','tough','towel','tower','toxic','trace','track',
-  'trade','trail','train','trait','trash','treat','trend','trial','tribe','trick','tried','troop','truck',
-  'truly','trump','trunk','trust','truth','tumor','tuned','twice','twist','tying','ultra','uncle','under',
-  'unify','union','unite','unity','until','upper','upset','urban','usage','usual','utter','valid','value',
-  'valve','vault','venue','verse','video','vigor','viral','virus','visit','vista','vital','vivid','vocal',
-  'voice','voter','wager','wages','wagon','waist','waste','watch','water','weary','weave','wedge','weigh',
-  'weird','wheat','wheel','where','which','while','white','whole','whose','widow','width','witch','woman',
-  'women','world','worry','worse','worst','worth','would','wound','wrath','write','wrong','wrote','yacht',
-  'yearn','yield','young','yours','youth','zebra'
-];
+const CLASS_CODE = 'PAL';
 
 // ═══════════════════════════════════════════
 // STATE
@@ -738,23 +673,23 @@ function togglePassword() {
 async function studentLogin() {
   const first = document.getElementById('s-first').value.trim();
   const last = document.getElementById('s-last').value.trim();
-  const code = 'PAL';
+  const code = document.getElementById('s-code').value.trim().toUpperCase();
   const errEl = document.getElementById('student-error');
 
-  if (!first || !last || !selectedPeriod) {
+  if (!first || !last || !code || !selectedPeriod) {
     errEl.textContent = 'Please fill in all fields and select a period.';
     errEl.style.display = 'block';
     return;
   }
   errEl.style.display = 'none';
 
-  console.log('[LOGIN] Attempting login:', { first, last, code, period: selectedPeriod });
+  console.log('[LOGIN] Attempting login:', { first, last, class_code: code, period: selectedPeriod });
 
-  // Get today's word for class PAL
+  // Get today's word
   try {
     const res = await sb(`daily_words?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&select=word`);
     const words = await res.json();
-    console.log('[LOGIN] Word lookup result:', words);
+    console.log('[LOGIN] Word lookup for class_code=' + code + ':', words);
     if (!words.length) {
       errEl.textContent = 'No word set for today yet. Ask your teacher!';
       errEl.style.display = 'block';
@@ -770,7 +705,7 @@ async function studentLogin() {
   }
 
   student = { first, last, code, period: selectedPeriod };
-  console.log('[LOGIN] Success, starting game');
+  console.log('[LOGIN] Success, student object:', student);
   startGame();
 }
 
@@ -797,19 +732,25 @@ async function teacherLogin() {
   errEl.style.display = 'none';
 
   // Ensure class exists (upsert)
+  console.log('[TEACHER] Ensuring class exists:', code);
   try {
-    await sb('classes', {
+    const res = await sb('classes', {
       method: 'POST',
       body: JSON.stringify({ class_code: code, teacher_name: name }),
       prefer: 'resolution=merge-duplicates,return=representation'
     });
-  } catch (e) { /* may already exist */ }
+    const data = await res.json();
+    console.log('[TEACHER] Class upsert result:', res.status, data);
+  } catch (e) {
+    console.error('[TEACHER] Class upsert error:', e);
+  }
 
   teacher = { name, code };
+  console.log('[TEACHER] Logged in, teacher object:', teacher);
   showScreen('teacher-dashboard');
   document.getElementById('dash-meta').textContent = `${name} \u2022 ${code} \u2022 ${todayStr()}`;
   loadDashboard();
-  dashboardInterval = setInterval(loadDashboard, 10000);
+  dashboardInterval = setInterval(loadDashboard, 5000);
 }
 
 // ═══════════════════════════════════════════
@@ -917,12 +858,6 @@ function submitGuess() {
   let word = '';
   for (let c = 0; c < 5; c++) {
     word += document.getElementById(`tile-${currentRow}-${c}`).textContent;
-  }
-
-  if (!VALID_WORDS.includes(word.toLowerCase()) && word.toUpperCase() !== targetWord) {
-    showToast('Not in word list');
-    shakeRow(currentRow);
-    return;
   }
 
   guesses.push(word);
@@ -1050,22 +985,45 @@ async function saveResult(solved, numGuesses) {
     return { word, result };
   });
 
+  const classCode = student.code.toUpperCase();
+
+  // Ensure the class exists before saving
+  console.log('[SAVE] Ensuring class exists:', classCode);
   try {
-    await sb('results', {
+    await sb('classes', {
       method: 'POST',
-      body: JSON.stringify({
-        class_code: student.code,
-        first_name: student.first,
-        last_name: student.last,
-        period: student.period,
-        play_date: todayStr(),
-        solved,
-        num_guesses: numGuesses,
-        guess_data: JSON.stringify(guessData)
-      })
+      body: JSON.stringify({ class_code: classCode, teacher_name: 'auto' }),
+      prefer: 'resolution=merge-duplicates,return=representation'
     });
   } catch (e) {
-    console.error('Failed to save result:', e);
+    console.error('[SAVE] Class upsert error (continuing anyway):', e);
+  }
+
+  const payload = {
+    class_code: classCode,
+    first_name: student.first,
+    last_name: student.last,
+    period: student.period,
+    play_date: todayStr(),
+    solved,
+    num_guesses: numGuesses,
+    guess_data: JSON.stringify(guessData)
+  };
+  console.log('[SAVE] Saving result to Supabase:', JSON.stringify(payload, null, 2));
+
+  try {
+    const res = await sb('results', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    console.log('[SAVE] Response status:', res.status);
+    console.log('[SAVE] Response data:', JSON.stringify(data, null, 2));
+    if (res.status >= 400) {
+      console.error('[SAVE] ERROR saving result! Status:', res.status, 'Body:', data);
+    }
+  } catch (e) {
+    console.error('[SAVE] Failed to save result:', e);
   }
 }
 
@@ -1074,22 +1032,26 @@ async function saveResult(solved, numGuesses) {
 // ═══════════════════════════════════════════
 async function loadDashboard() {
   if (!teacher) return;
+  const code = teacher.code;
+  console.log('[DASH] Loading dashboard for class_code="' + code + '" date="' + todayStr() + '"');
   try {
     // Load today's word
-    const wRes = await sb(`daily_words?class_code=eq.${encodeURIComponent(teacher.code)}&play_date=eq.${todayStr()}&select=word`);
+    const wRes = await sb(`daily_words?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&select=word`);
     const words = await wRes.json();
+    console.log('[DASH] Word lookup:', words);
     if (words.length) {
       document.getElementById('word-input').value = words[0].word.toUpperCase();
       document.getElementById('word-input').disabled = true;
     }
 
     // Load results
-    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(teacher.code)}&play_date=eq.${todayStr()}&select=*&order=last_name.asc,first_name.asc`);
+    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&select=*&order=last_name.asc,first_name.asc`);
     const results = await rRes.json();
+    console.log('[DASH] Queried class_code="' + code + '", got', results.length, 'results:', results);
 
     renderDashboard(results);
   } catch (e) {
-    console.error('Dashboard load error:', e);
+    console.error('[DASH] Dashboard load error:', e);
   }
 }
 
@@ -1155,7 +1117,8 @@ async function setWord() {
   if (!/^[A-Z]{5}$/.test(word)) { showToast('Letters only'); return; }
 
   try {
-    await sb('daily_words', {
+    console.log('[TEACHER] Setting word:', word, 'for class:', teacher.code);
+    const res = await sb('daily_words', {
       method: 'POST',
       body: JSON.stringify({
         class_code: teacher.code,
@@ -1164,6 +1127,8 @@ async function setWord() {
       }),
       prefer: 'resolution=merge-duplicates,return=representation'
     });
+    const data = await res.json();
+    console.log('[TEACHER] Set word response:', res.status, data);
     document.getElementById('word-input').disabled = true;
     showToast('Word set!');
   } catch (e) {
