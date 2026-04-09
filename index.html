@@ -736,7 +736,7 @@ async function teacherLogin() {
   try {
     const res = await sb('classes', {
       method: 'POST',
-      body: JSON.stringify({ class_code: code, teacher_name: name }),
+      body: JSON.stringify({ code: code, teacher_name: name }),
       prefer: 'resolution=merge-duplicates,return=representation'
     });
     const data = await res.json();
@@ -971,43 +971,17 @@ function copyResult() {
 // SAVE RESULT TO SUPABASE
 // ═══════════════════════════════════════════
 async function saveResult(solved, numGuesses) {
-  const guessData = guesses.map(word => {
-    const target = targetWord.toUpperCase();
-    const result = Array(5).fill('absent');
-    const tc = {};
-    for (let i = 0; i < 5; i++) {
-      if (word[i] === target[i]) result[i] = 'correct';
-      else tc[target[i]] = (tc[target[i]] || 0) + 1;
-    }
-    for (let i = 0; i < 5; i++) {
-      if (result[i] !== 'correct' && tc[word[i]] > 0) { result[i] = 'present'; tc[word[i]]--; }
-    }
-    return { word, result };
-  });
-
   const classCode = student.code.toUpperCase();
-
-  // Ensure the class exists before saving
-  console.log('[SAVE] Ensuring class exists:', classCode);
-  try {
-    await sb('classes', {
-      method: 'POST',
-      body: JSON.stringify({ class_code: classCode, teacher_name: 'auto' }),
-      prefer: 'resolution=merge-duplicates,return=representation'
-    });
-  } catch (e) {
-    console.error('[SAVE] Class upsert error (continuing anyway):', e);
-  }
+  const studentName = `${student.first} ${student.last}`;
 
   const payload = {
     class_code: classCode,
-    first_name: student.first,
-    last_name: student.last,
+    student_name: studentName,
     period: student.period,
     play_date: todayStr(),
-    solved,
-    num_guesses: numGuesses,
-    guess_data: JSON.stringify(guessData)
+    won: solved,
+    guess_count: numGuesses,
+    guesses: guesses
   };
   console.log('[SAVE] Saving result to Supabase:', JSON.stringify(payload, null, 2));
 
@@ -1021,9 +995,13 @@ async function saveResult(solved, numGuesses) {
     console.log('[SAVE] Response data:', JSON.stringify(data, null, 2));
     if (res.status >= 400) {
       console.error('[SAVE] ERROR saving result! Status:', res.status, 'Body:', data);
+      showToast('Error saving result!');
+    } else {
+      console.log('[SAVE] Result saved successfully!');
     }
   } catch (e) {
     console.error('[SAVE] Failed to save result:', e);
+    showToast('Error saving result!');
   }
 }
 
@@ -1045,7 +1023,7 @@ async function loadDashboard() {
     }
 
     // Load results
-    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&select=*&order=last_name.asc,first_name.asc`);
+    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&select=*&order=student_name.asc`);
     const results = await rRes.json();
     console.log('[DASH] Queried class_code="' + code + '", got', results.length, 'results:', results);
 
@@ -1059,10 +1037,10 @@ function renderDashboard(results) {
   const filtered = activePeriodFilter === 'all' ? results : results.filter(r => r.period == activePeriodFilter);
 
   const total = filtered.length;
-  const solved = filtered.filter(r => r.solved).length;
+  const solved = filtered.filter(r => r.won).length;
   const unsolved = total - solved;
-  const solvedResults = filtered.filter(r => r.solved);
-  const avg = solvedResults.length ? (solvedResults.reduce((s, r) => s + r.num_guesses, 0) / solvedResults.length).toFixed(1) : '-';
+  const solvedResults = filtered.filter(r => r.won);
+  const avg = solvedResults.length ? (solvedResults.reduce((s, r) => s + r.guess_count, 0) / solvedResults.length).toFixed(1) : '-';
 
   document.getElementById('stat-total').textContent = total;
   document.getElementById('stat-solved').textContent = solved;
@@ -1076,26 +1054,40 @@ function renderDashboard(results) {
   }
 
   tbody.innerHTML = filtered.map(r => {
-    const status = r.solved
+    const status = r.won
       ? '<span class="status-badge solved">Solved</span>'
       : '<span class="status-badge failed">Failed</span>';
 
     let dots = '';
     try {
-      const gd = JSON.parse(r.guess_data);
-      dots = gd.map(g => {
-        return g.result.map(c => {
-          const color = c === 'correct' ? 'var(--green)' : c === 'present' ? 'var(--yellow)' : 'var(--gray)';
-          return `<span style="background:${color}"></span>`;
-        }).join('');
-      }).join(' ');
+      const guessWords = Array.isArray(r.guesses) ? r.guesses : JSON.parse(r.guesses);
+      // Get today's word to compute colors
+      const todayWord = document.getElementById('word-input').value.toUpperCase();
+      if (todayWord && guessWords.length) {
+        dots = guessWords.map(word => {
+          const target = todayWord;
+          const result = Array(5).fill('absent');
+          const tc = {};
+          for (let i = 0; i < 5; i++) {
+            if (word[i] === target[i]) result[i] = 'correct';
+            else tc[target[i]] = (tc[target[i]] || 0) + 1;
+          }
+          for (let i = 0; i < 5; i++) {
+            if (result[i] !== 'correct' && tc[word[i]] > 0) { result[i] = 'present'; tc[word[i]]--; }
+          }
+          return result.map(c => {
+            const color = c === 'correct' ? 'var(--green)' : c === 'present' ? 'var(--yellow)' : 'var(--gray)';
+            return `<span style="background:${color}"></span>`;
+          }).join('');
+        }).join(' ');
+      }
     } catch (e) { dots = '-'; }
 
     return `<tr>
-      <td><strong>${r.last_name}, ${r.first_name}</strong></td>
+      <td><strong>${r.student_name}</strong></td>
       <td>P${r.period}</td>
       <td>${status}</td>
-      <td>${r.solved ? r.num_guesses + '/6' : 'X/6'}</td>
+      <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
       <td><div class="dot-progress">${dots}</div></td>
     </tr>`;
   }).join('');
@@ -1143,9 +1135,9 @@ function exportCSV() {
   const results = window._dashResults || [];
   if (!results.length) { showToast('No data to export'); return; }
 
-  const rows = [['Last Name', 'First Name', 'Period', 'Status', 'Guesses', 'Date']];
+  const rows = [['Student Name', 'Period', 'Status', 'Guesses', 'Date']];
   results.forEach(r => {
-    rows.push([r.last_name, r.first_name, r.period, r.solved ? 'Solved' : 'Failed', r.num_guesses, r.play_date]);
+    rows.push([r.student_name, r.period, r.won ? 'Solved' : 'Failed', r.guess_count, r.play_date]);
   });
 
   const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
