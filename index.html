@@ -469,10 +469,6 @@ tr:hover td { background: #fafbff; }
       <input id="s-last" type="text" placeholder="Enter last name" autocomplete="off">
     </div>
     <div class="form-group">
-      <label>Class Code</label>
-      <input id="s-code" type="text" value="PAL" readonly style="background:#f0f0f0;cursor:default;" autocomplete="off">
-    </div>
-    <div class="form-group">
       <label>Period</label>
       <div class="period-selector" id="s-period-sel">
         <button class="period-btn" data-p="1">1</button>
@@ -742,10 +738,10 @@ function togglePassword() {
 async function studentLogin() {
   const first = document.getElementById('s-first').value.trim();
   const last = document.getElementById('s-last').value.trim();
-  const code = document.getElementById('s-code').value.trim().toUpperCase();
+  const code = 'PAL';
   const errEl = document.getElementById('student-error');
 
-  if (!first || !last || !code || !selectedPeriod) {
+  if (!first || !last || !selectedPeriod) {
     errEl.textContent = 'Please fill in all fields and select a period.';
     errEl.style.display = 'block';
     return;
@@ -754,31 +750,9 @@ async function studentLogin() {
 
   console.log('[LOGIN] Attempting login:', { first, last, code, period: selectedPeriod });
 
-  // Check class exists (case-insensitive)
+  // Get today's word for class PAL
   try {
-    const res = await sb(`classes?class_code=ilike.${encodeURIComponent(code)}&select=id,class_code`);
-    const classes = await res.json();
-    console.log('[LOGIN] Class lookup result:', classes);
-    if (!classes.length) {
-      errEl.textContent = 'Class code not found. Ask your teacher for the code.';
-      errEl.style.display = 'block';
-      return;
-    }
-    // Use the exact class_code from the database for subsequent queries
-    const dbCode = classes[0].class_code;
-    console.log('[LOGIN] Using DB class_code:', dbCode);
-    var classCode = dbCode;
-  } catch (e) {
-    console.error('[LOGIN] Class lookup error:', e);
-    errEl.textContent = 'Connection error. Please try again.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  // Get today's word
-  try {
-    console.log('[LOGIN] Fetching word for date:', todayStr());
-    const res = await sb(`daily_words?class_code=eq.${encodeURIComponent(classCode)}&play_date=eq.${todayStr()}&select=word`);
+    const res = await sb(`daily_words?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&select=word`);
     const words = await res.json();
     console.log('[LOGIN] Word lookup result:', words);
     if (!words.length) {
@@ -795,21 +769,7 @@ async function studentLogin() {
     return;
   }
 
-  // Check if already played
-  try {
-    const res = await sb(`results?class_code=eq.${encodeURIComponent(classCode)}&first_name=ilike.${encodeURIComponent(first)}&last_name=ilike.${encodeURIComponent(last)}&period=eq.${selectedPeriod}&play_date=eq.${todayStr()}&select=id`);
-    const existing = await res.json();
-    console.log('[LOGIN] Already played check:', existing);
-    if (existing.length) {
-      errEl.textContent = "You've already played today!";
-      errEl.style.display = 'block';
-      return;
-    }
-  } catch (e) {
-    console.error('[LOGIN] Already-played check error:', e);
-  }
-
-  student = { first, last, code: classCode, period: selectedPeriod };
+  student = { first, last, code, period: selectedPeriod };
   console.log('[LOGIN] Success, starting game');
   startGame();
 }
