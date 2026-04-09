@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ClassWordle</title>
+<title>WordlePal</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -753,7 +753,7 @@ tr.att-row.missing td { background: #fce4ec; }
 
 <!-- ─── ROLE SELECT ─── -->
 <div id="role-screen" class="screen active">
-  <h1>ClassWordle</h1>
+  <h1>WordlePal</h1>
   <p class="subtitle">A Wordle game for your classroom</p>
   <div class="role-buttons">
     <button class="role-btn" onclick="showScreen('student-login')">
@@ -825,7 +825,7 @@ tr.att-row.missing td { background: #fce4ec; }
 <!-- ─── GAME SCREEN ─── -->
 <div id="game-screen" class="screen">
   <div class="game-header">
-    <h1>ClassWordle</h1>
+    <h1>WordlePal</h1>
     <span class="player-info" id="player-info"></span>
   </div>
   <div class="board" id="board"></div>
@@ -851,7 +851,7 @@ tr.att-row.missing td { background: #fce4ec; }
 <div id="teacher-dashboard" class="screen">
   <div class="dash-header">
     <div>
-      <h1>ClassWordle Dashboard</h1>
+      <h1>WordlePal Dashboard</h1>
       <span class="meta" id="dash-meta"></span>
     </div>
     <div class="dash-actions">
@@ -1081,7 +1081,7 @@ async function studentLogin() {
         // Check if that roster student already submitted
         const alreadySubmitted = existingResults.some(existing => nameMatch(existing, match.name));
         if (alreadySubmitted) {
-          errEl.textContent = `${match.name} has already completed today's ClassWordle!`;
+          errEl.textContent = `${match.name} has already completed today's WordlePal!`;
           errEl.style.display = 'block';
           return;
         }
@@ -1350,7 +1350,7 @@ function buildEmojiGrid() {
 
 function copyResult() {
   const won = guesses[guesses.length - 1].toUpperCase() === targetWord;
-  const text = `ClassWordle ${todayStr()} ${won ? guesses.length : 'X'}/6\n\n` +
+  const text = `WordlePal ${todayStr()} ${won ? guesses.length : 'X'}/6\n\n` +
     document.getElementById('result-grid').textContent.replace(/<br>/g, '\n');
   navigator.clipboard.writeText(text).then(() => showToast('Copied!')).catch(() => showToast('Copy failed'));
 }
@@ -1704,7 +1704,7 @@ function exportCSV() {
   const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `classwordle_${teacher.code}_${todayStr()}.csv`;
+  a.download = `wordlepal_${teacher.code}_${todayStr()}.csv`;
   a.click();
 }
 
