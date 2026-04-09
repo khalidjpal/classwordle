@@ -141,12 +141,20 @@ h1, h2, h3 { font-family: 'Fredoka One', cursive; }
 }
 
 /* ── GAME SCREEN ── */
-#game-screen { padding: 10px; background: var(--bg); }
+#game-screen {
+  padding: 10px 10px 0;
+  background: var(--bg);
+  justify-content: flex-start;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
 
 .game-header {
   width: 100%; max-width: 500px;
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 4px; margin-bottom: 6px;
+  flex-shrink: 0;
 }
 .game-header h1 { font-size: 1.4rem; color: var(--accent); }
 .game-header .player-info { font-size: .85rem; color: #888; }
@@ -158,6 +166,9 @@ h1, h2, h3 { font-family: 'Fredoka One', cursive; }
   gap: 6px;
   width: 100%; max-width: 340px;
   margin: 0 auto;
+  flex: 1;
+  min-height: 0;
+  max-height: 380px;
 }
 .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .tile {
@@ -201,33 +212,57 @@ h1, h2, h3 { font-family: 'Fredoka One', cursive; }
 .row.shake { animation: shake .4s ease; }
 
 /* Keyboard */
-.keyboard {
-  width: 100%; max-width: 500px;
-  margin-top: 12px;
-  user-select: none;
+.keyboard-area {
+  width: 100%;
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
 }
-.kb-row { display: flex; justify-content: center; gap: 4px; margin-bottom: 5px; }
+.keyboard {
+  width: 100%;
+  max-width: 540px;
+  padding: 10px 4px 12px;
+  user-select: none;
+  flex-shrink: 0;
+  background: linear-gradient(to bottom, transparent, rgba(0,0,0,.02));
+}
+.kb-row {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.kb-row:last-child { margin-bottom: 0; }
 .key {
-  height: 52px;
-  min-width: 32px;
-  padding: 0 8px;
+  height: 54px;
+  min-width: 0;
+  padding: 0;
   border: none;
-  border-radius: 6px;
-  background: var(--light-gray);
+  border-radius: 8px;
+  background: #e2e4e9;
   font-family: 'Nunito', sans-serif;
   font-weight: 700;
-  font-size: .85rem;
+  font-size: .95rem;
   cursor: pointer;
   text-transform: uppercase;
-  transition: background .15s, color .15s;
+  transition: background .15s, color .15s, transform .08s;
   display: flex; align-items: center; justify-content: center;
   flex: 1;
-  max-width: 44px;
+  box-shadow: 0 2px 0 rgba(0,0,0,.12);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
-.key.wide { max-width: 65px; font-size: .75rem; }
-.key.correct { background: var(--green); color: #fff; }
-.key.present { background: var(--yellow); color: #fff; }
-.key.absent { background: var(--dark-gray); color: #fff; }
+.key:active { transform: scale(0.95); }
+.key.wide {
+  flex: 1.5;
+  font-size: .8rem;
+  letter-spacing: .02em;
+}
+.key.correct { background: var(--green); color: #fff; box-shadow: 0 2px 0 rgba(0,0,0,.2); }
+.key.present { background: var(--yellow); color: #fff; box-shadow: 0 2px 0 rgba(0,0,0,.2); }
+.key.absent { background: var(--dark-gray); color: #fff; box-shadow: 0 2px 0 rgba(0,0,0,.25); }
 
 /* Message toast */
 .toast-container {
@@ -430,12 +465,35 @@ tr:hover td { background: #fafbff; }
 }
 
 /* ── RESPONSIVE ── */
-@media (max-width: 480px) {
+@media (max-width: 600px) {
+  #game-screen {
+    padding: 6px 0 0;
+  }
+  .game-header {
+    padding: 6px 12px;
+    margin-bottom: 2px;
+  }
+  .board {
+    max-width: 280px;
+    max-height: 330px;
+    gap: 5px;
+  }
   .tile { font-size: 1.4rem; }
-  .key { height: 46px; font-size: .75rem; }
+  .keyboard {
+    max-width: 100%;
+    padding: 8px 6px calc(env(safe-area-inset-bottom, 6px) + 6px);
+    background: #f0f1f4;
+    border-top: 1px solid rgba(0,0,0,.06);
+  }
+  .kb-row { gap: 4px; margin-bottom: 5px; }
+  .key {
+    height: 50px;
+    border-radius: 6px;
+    font-size: .85rem;
+  }
+  .key.wide { font-size: .7rem; }
   .login-card { padding: 24px 20px; }
   #role-screen h1 { font-size: 2rem; }
-  .board { max-width: 300px; }
 }
 </style>
 </head>
@@ -519,7 +577,9 @@ tr:hover td { background: #fafbff; }
     <span class="player-info" id="player-info"></span>
   </div>
   <div class="board" id="board"></div>
-  <div class="keyboard" id="keyboard"></div>
+  <div class="keyboard-area">
+    <div class="keyboard" id="keyboard"></div>
+  </div>
 </div>
 
 <!-- ─── RESULT SCREEN ─── -->
