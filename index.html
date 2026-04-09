@@ -1827,6 +1827,11 @@ async function loadRoster() {
   classRoster = { 1: [], 2: [], 3: [], 4: [], 5: [] };
   try {
     const res = await sb(`rosters?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,student_name&order=period.asc,student_name.asc`);
+    if (res.status >= 400) {
+      const err = await res.json();
+      console.error('[ROSTER] Load failed (table may not exist):', err);
+      return;
+    }
     const rows = await res.json();
     console.log('[ROSTER] Loaded', rows.length, 'roster entries');
     rows.forEach(r => {
@@ -1862,13 +1867,21 @@ async function saveRosterPeriod(period) {
   const statusEl = document.getElementById(`roster-status-${period}`);
   const names = ta.value.split('\n').map(n => n.trim()).filter(n => n.length > 0);
 
+  statusEl.style.color = '';
   statusEl.textContent = 'Saving...';
 
   try {
     // Delete existing roster for this period
-    await sb(`rosters?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}`, {
+    const delRes = await sb(`rosters?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}`, {
       method: 'DELETE'
     });
+    if (delRes.status >= 400) {
+      const err = await delRes.json();
+      console.error('[ROSTER] Delete failed:', err);
+      statusEl.style.color = '#c62828';
+      statusEl.textContent = `Error: ${err.message || 'Could not delete old roster. Does the rosters table exist?'}`;
+      return;
+    }
 
     // Insert new names
     if (names.length) {
@@ -1881,22 +1894,31 @@ async function saveRosterPeriod(period) {
         method: 'POST',
         body: JSON.stringify(rows)
       });
+      if (res.status >= 400) {
+        const err = await res.json();
+        console.error('[ROSTER] Insert failed:', err);
+        statusEl.style.color = '#c62828';
+        statusEl.textContent = `Error: ${err.message || 'Could not save roster. Does the rosters table exist?'}`;
+        return;
+      }
       const data = await res.json();
       console.log('[ROSTER] Saved period', period, ':', data.length, 'entries');
     }
 
     classRoster[period] = names;
+    statusEl.style.color = 'var(--green)';
     statusEl.textContent = `Saved! (${names.length} students)`;
-    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    showToast(`Period ${period} roster saved!`);
+    setTimeout(() => { statusEl.textContent = ''; }, 4000);
 
-    // Update chips
+    // Update chips and header
     document.getElementById(`roster-chips-${period}`).innerHTML =
       names.map(n => `<span class="roster-chip">${n}</span>`).join('');
 
   } catch (e) {
     console.error('[ROSTER] Save error:', e);
-    statusEl.textContent = 'Error saving!';
     statusEl.style.color = '#c62828';
+    statusEl.textContent = 'Network error — check connection and try again.';
   }
 }
 
