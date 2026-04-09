@@ -450,6 +450,113 @@ tr:hover td { background: #fafbff; }
   color: #888;
 }
 
+/* Dashboard Tabs */
+.dash-tabs {
+  width: 100%; max-width: 900px;
+  display: flex; gap: 0; margin-bottom: 16px;
+  border-bottom: 2px solid var(--light-gray);
+}
+.dash-tab {
+  padding: 10px 24px;
+  border: none;
+  background: none;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #888;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.dash-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.dash-tab:hover { color: var(--accent); }
+.dash-panel { display: none; width: 100%; max-width: 900px; }
+.dash-panel.active { display: block; }
+
+/* History */
+.history-nav {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.history-nav button {
+  padding: 8px 16px;
+  border: 2px solid var(--light-gray);
+  border-radius: 10px;
+  background: #fff;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: .9rem;
+  transition: all .15s;
+}
+.history-nav button:hover { border-color: var(--accent); color: var(--accent); }
+.history-nav button:disabled { opacity: .4; cursor: default; }
+.history-nav input[type="date"] {
+  padding: 8px 12px;
+  border: 2px solid var(--light-gray);
+  border-radius: 10px;
+  font-family: 'Nunito', sans-serif;
+  font-size: .9rem;
+  font-weight: 600;
+}
+.history-nav input[type="date"]:focus { outline: none; border-color: var(--accent); }
+.history-date-label {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+.history-word {
+  font-size: .9rem;
+  color: #888;
+  font-weight: 700;
+}
+.history-day-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  cursor: pointer;
+  transition: box-shadow .15s;
+}
+.history-day-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.1); }
+.history-day-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.history-day-header .date { font-family: 'Fredoka One', cursive; font-size: 1.05rem; color: var(--text); }
+.history-day-header .word-badge {
+  background: var(--accent-light);
+  color: var(--accent);
+  padding: 3px 12px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: .85rem;
+  letter-spacing: .05em;
+}
+.history-day-header .count { color: #888; font-size: .85rem; font-weight: 700; }
+.history-day-header .chevron {
+  font-size: 1.2rem;
+  color: #ccc;
+  transition: transform .2s;
+}
+.history-day-card.expanded .chevron { transform: rotate(180deg); }
+.history-detail {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .3s ease;
+}
+.history-day-card.expanded .history-detail {
+  max-height: 2000px;
+}
+.history-detail table { margin-top: 12px; }
+.history-stats {
+  display: flex; gap: 16px; margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid #f0f0f0;
+  font-size: .85rem; color: #888; font-weight: 700;
+}
+.history-stats span { color: var(--accent); }
+
 /* ── CONFETTI ── */
 .confetti-piece {
   position: fixed;
@@ -623,36 +730,55 @@ tr:hover td { background: #fafbff; }
     </div>
   </div>
 
-  <div class="word-setter">
-    <h3>Set Today's Word</h3>
-    <input id="word-input" type="text" maxlength="5" placeholder="5-letter word">
-    <button onclick="setWord()">Set Word</button>
+  <div class="dash-tabs">
+    <button class="dash-tab active" onclick="switchDashTab('today', this)">Today</button>
+    <button class="dash-tab" onclick="switchDashTab('history', this)">History</button>
   </div>
 
-  <div class="period-tabs" id="period-tabs">
-    <button class="period-tab active" data-p="all" onclick="filterPeriod('all',this)">All</button>
-    <button class="period-tab" data-p="1" onclick="filterPeriod(1,this)">Period 1</button>
-    <button class="period-tab" data-p="2" onclick="filterPeriod(2,this)">Period 2</button>
-    <button class="period-tab" data-p="3" onclick="filterPeriod(3,this)">Period 3</button>
-    <button class="period-tab" data-p="4" onclick="filterPeriod(4,this)">Period 4</button>
-    <button class="period-tab" data-p="5" onclick="filterPeriod(5,this)">Period 5</button>
+  <!-- TODAY PANEL -->
+  <div id="panel-today" class="dash-panel active">
+    <div class="word-setter">
+      <h3>Set Today's Word</h3>
+      <input id="word-input" type="text" maxlength="5" placeholder="5-letter word">
+      <button onclick="setWord()">Set Word</button>
+    </div>
+
+    <div class="period-tabs" id="period-tabs">
+      <button class="period-tab active" data-p="all" onclick="filterPeriod('all',this)">All</button>
+      <button class="period-tab" data-p="1" onclick="filterPeriod(1,this)">Period 1</button>
+      <button class="period-tab" data-p="2" onclick="filterPeriod(2,this)">Period 2</button>
+      <button class="period-tab" data-p="3" onclick="filterPeriod(3,this)">Period 3</button>
+      <button class="period-tab" data-p="4" onclick="filterPeriod(4,this)">Period 4</button>
+      <button class="period-tab" data-p="5" onclick="filterPeriod(5,this)">Period 5</button>
+    </div>
+
+    <div class="stats-row" id="stats-row">
+      <div class="stat-card"><div class="num" id="stat-total">0</div><div class="label">Total Played</div></div>
+      <div class="stat-card"><div class="num" id="stat-solved">0</div><div class="label">Solved</div></div>
+      <div class="stat-card"><div class="num" id="stat-unsolved">0</div><div class="label">Unsolved</div></div>
+      <div class="stat-card"><div class="num" id="stat-avg">-</div><div class="label">Avg Guesses</div></div>
+    </div>
+
+    <div class="results-table-wrap">
+      <h3>Student Results</h3>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Period</th><th>Status</th><th>Guesses</th><th>Progress</th></tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
   </div>
 
-  <div class="stats-row" id="stats-row">
-    <div class="stat-card"><div class="num" id="stat-total">0</div><div class="label">Total Played</div></div>
-    <div class="stat-card"><div class="num" id="stat-solved">0</div><div class="label">Solved</div></div>
-    <div class="stat-card"><div class="num" id="stat-unsolved">0</div><div class="label">Unsolved</div></div>
-    <div class="stat-card"><div class="num" id="stat-avg">-</div><div class="label">Avg Guesses</div></div>
-  </div>
-
-  <div class="results-table-wrap">
-    <h3>Student Results</h3>
-    <table>
-      <thead>
-        <tr><th>Name</th><th>Period</th><th>Status</th><th>Guesses</th><th>Progress</th></tr>
-      </thead>
-      <tbody id="results-body"></tbody>
-    </table>
+  <!-- HISTORY PANEL -->
+  <div id="panel-history" class="dash-panel">
+    <div class="history-nav">
+      <button onclick="historyPrev()" id="hist-prev">&larr; Prev Day</button>
+      <input type="date" id="hist-date-picker" onchange="historyGoToDate(this.value)">
+      <button onclick="historyNext()" id="hist-next">Next Day &rarr;</button>
+      <button onclick="historyGoToDate(todayStr())">Today</button>
+    </div>
+    <div id="history-content"></div>
   </div>
 </div>
 
@@ -1221,6 +1347,192 @@ function exportCSV() {
   a.href = URL.createObjectURL(blob);
   a.download = `classwordle_${teacher.code}_${todayStr()}.csv`;
   a.click();
+}
+
+// ═══════════════════════════════════════════
+// DASHBOARD TABS
+// ═══════════════════════════════════════════
+function switchDashTab(tab, btn) {
+  document.querySelectorAll('.dash-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.dash-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  if (tab === 'history') loadHistory();
+}
+
+// ═══════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════
+let historyDate = null;
+let historyDays = []; // all available dates
+
+async function loadHistory() {
+  if (!teacher) return;
+  const code = teacher.code;
+
+  // Load all daily_words for this class to get available dates
+  try {
+    const wRes = await sb(`daily_words?class_code=eq.${encodeURIComponent(code)}&select=word,play_date&order=play_date.desc`);
+    historyDays = await wRes.json();
+  } catch (e) {
+    console.error('[HISTORY] Failed to load words:', e);
+    historyDays = [];
+  }
+
+  // Default to most recent past day (not today)
+  if (!historyDate) {
+    const today = todayStr();
+    const pastDay = historyDays.find(d => d.play_date < today);
+    historyDate = pastDay ? pastDay.play_date : (historyDays.length ? historyDays[0].play_date : today);
+  }
+
+  document.getElementById('hist-date-picker').value = historyDate;
+  await renderHistoryForDate(historyDate);
+  updateHistoryNav();
+}
+
+function updateHistoryNav() {
+  const dates = historyDays.map(d => d.play_date).sort();
+  const idx = dates.indexOf(historyDate);
+  document.getElementById('hist-prev').disabled = idx <= 0;
+  document.getElementById('hist-next').disabled = idx >= dates.length - 1;
+}
+
+function historyPrev() {
+  const dates = historyDays.map(d => d.play_date).sort();
+  const idx = dates.indexOf(historyDate);
+  if (idx > 0) {
+    historyDate = dates[idx - 1];
+    document.getElementById('hist-date-picker').value = historyDate;
+    renderHistoryForDate(historyDate);
+    updateHistoryNav();
+  }
+}
+
+function historyNext() {
+  const dates = historyDays.map(d => d.play_date).sort();
+  const idx = dates.indexOf(historyDate);
+  if (idx < dates.length - 1) {
+    historyDate = dates[idx + 1];
+    document.getElementById('hist-date-picker').value = historyDate;
+    renderHistoryForDate(historyDate);
+    updateHistoryNav();
+  }
+}
+
+function historyGoToDate(dateStr) {
+  historyDate = dateStr;
+  document.getElementById('hist-date-picker').value = dateStr;
+  renderHistoryForDate(dateStr);
+  updateHistoryNav();
+}
+
+async function renderHistoryForDate(dateStr) {
+  if (!teacher) return;
+  const code = teacher.code;
+  const container = document.getElementById('history-content');
+  container.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading...</p>';
+
+  try {
+    // Get word for this date
+    const wRes = await sb(`daily_words?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${dateStr}&select=word`);
+    const words = await wRes.json();
+    const word = words.length ? words[0].word.toUpperCase() : null;
+
+    // Get results for this date
+    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${dateStr}&select=*&order=student_name.asc`);
+    const results = await rRes.json();
+
+    if (!word && !results.length) {
+      container.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px;">No game played on this date.</p>';
+      return;
+    }
+
+    const total = results.length;
+    const solved = results.filter(r => r.won).length;
+    const solvedResults = results.filter(r => r.won);
+    const avg = solvedResults.length ? (solvedResults.reduce((s, r) => s + r.guess_count, 0) / solvedResults.length).toFixed(1) : '-';
+
+    const displayDate = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+    let html = `
+      <div class="history-day-card expanded" style="cursor:default;">
+        <div class="history-day-header">
+          <span class="date">${displayDate}</span>
+          ${word ? `<span class="word-badge">${word}</span>` : ''}
+          <span class="count">${total} student${total !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="history-stats">
+          Solved: <span>${solved}/${total}</span> &nbsp; Avg Guesses: <span>${avg}</span>
+        </div>
+        <div class="history-detail" style="max-height:none;">`;
+
+    if (results.length) {
+      html += `<table>
+        <thead><tr><th>Name</th><th>Period</th><th>Status</th><th>Guesses</th><th>Progress</th></tr></thead>
+        <tbody>`;
+      html += results.map(r => {
+        const status = r.won
+          ? '<span class="status-badge solved">Solved</span>'
+          : '<span class="status-badge failed">Failed</span>';
+        let dots = '';
+        try {
+          const guessWords = Array.isArray(r.guesses) ? r.guesses : JSON.parse(r.guesses);
+          if (word && guessWords.length) {
+            dots = guessWords.map(g => {
+              const target = word;
+              const result = Array(5).fill('absent');
+              const tc = {};
+              for (let i = 0; i < 5; i++) {
+                if (g[i] === target[i]) result[i] = 'correct';
+                else tc[target[i]] = (tc[target[i]] || 0) + 1;
+              }
+              for (let i = 0; i < 5; i++) {
+                if (result[i] !== 'correct' && tc[g[i]] > 0) { result[i] = 'present'; tc[g[i]]--; }
+              }
+              return result.map(c => {
+                const color = c === 'correct' ? 'var(--green)' : c === 'present' ? 'var(--yellow)' : 'var(--gray)';
+                return `<span style="background:${color}"></span>`;
+              }).join('');
+            }).join(' ');
+          }
+        } catch (e) { dots = '-'; }
+        return `<tr>
+          <td><strong>${r.student_name}</strong></td>
+          <td>P${r.period}</td>
+          <td>${status}</td>
+          <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
+          <td><div class="dot-progress">${dots}</div></td>
+        </tr>`;
+      }).join('');
+      html += `</tbody></table>`;
+    } else {
+      html += '<p style="color:#aaa;text-align:center;padding:16px;">No student results.</p>';
+    }
+
+    html += `</div></div>`;
+
+    // Also show a summary list of all available dates below
+    html += '<h3 style="margin:20px 0 12px;">All Past Games</h3>';
+    html += historyDays.map(day => {
+      const isActive = day.play_date === dateStr;
+      const d = new Date(day.play_date + 'T12:00:00');
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+      return `<div class="history-day-card${isActive ? ' expanded' : ''}" onclick="historyGoToDate('${day.play_date}')" style="padding:12px 16px;margin-bottom:8px;${isActive ? 'border-left:4px solid var(--accent);' : ''}">
+        <div class="history-day-header">
+          <span class="date" style="font-size:.95rem;">${weekday}, ${label}</span>
+          <span class="word-badge">${day.word.toUpperCase()}</span>
+          <span class="chevron">${isActive ? '&#9654;' : ''}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    container.innerHTML = html;
+  } catch (e) {
+    console.error('[HISTORY] Error:', e);
+    container.innerHTML = '<p style="color:#c0392b;text-align:center;padding:20px;">Error loading history.</p>';
+  }
 }
 
 // ═══════════════════════════════════════════
