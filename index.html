@@ -557,6 +557,49 @@ tr:hover td { background: #fafbff; }
 }
 .history-stats span { color: var(--accent); }
 
+/* Period sections in history */
+.period-section {
+  background: #fff;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 8px rgba(0,0,0,.04);
+  overflow: hidden;
+}
+.period-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .15s;
+}
+.period-section-header:hover { background: #f8f9fc; }
+.period-section-header .period-label {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1rem;
+  color: var(--text);
+}
+.period-section-header .period-count {
+  font-size: .85rem; color: #888; font-weight: 700;
+}
+.period-section-header .period-solve-rate {
+  font-size: .8rem; color: var(--green); font-weight: 700;
+}
+.period-section-header .chevron-period {
+  font-size: .9rem; color: #ccc; transition: transform .2s;
+}
+.period-section.open .chevron-period { transform: rotate(180deg); }
+.period-section-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .3s ease;
+}
+.period-section.open .period-section-body {
+  max-height: 2000px;
+}
+.period-section-body table { margin: 0; }
+.period-section-body td, .period-section-body th { padding: 8px 12px; }
+.period-section-body th { font-size: .75rem; }
+
 /* ── CONFETTI ── */
 .confetti-piece {
   position: fixed;
@@ -1427,6 +1470,73 @@ function historyGoToDate(dateStr) {
   updateHistoryNav();
 }
 
+function buildProgressDots(guessWords, word) {
+  if (!word || !guessWords || !guessWords.length) return '';
+  return guessWords.map(g => {
+    const target = word;
+    const result = Array(5).fill('absent');
+    const tc = {};
+    for (let i = 0; i < 5; i++) {
+      if (g[i] === target[i]) result[i] = 'correct';
+      else tc[target[i]] = (tc[target[i]] || 0) + 1;
+    }
+    for (let i = 0; i < 5; i++) {
+      if (result[i] !== 'correct' && tc[g[i]] > 0) { result[i] = 'present'; tc[g[i]]--; }
+    }
+    return result.map(c => {
+      const color = c === 'correct' ? 'var(--green)' : c === 'present' ? 'var(--yellow)' : 'var(--gray)';
+      return `<span style="background:${color}"></span>`;
+    }).join('');
+  }).join(' ');
+}
+
+function togglePeriodSection(el) {
+  el.closest('.period-section').classList.toggle('open');
+}
+
+function buildPeriodSections(results, word) {
+  const periods = [1, 2, 3, 4, 5];
+  return periods.map(p => {
+    const pResults = results.filter(r => r.period === p);
+    if (!pResults.length) return '';
+    const pSolved = pResults.filter(r => r.won).length;
+    const pSolvedResults = pResults.filter(r => r.won);
+    const pAvg = pSolvedResults.length ? (pSolvedResults.reduce((s, r) => s + r.guess_count, 0) / pSolvedResults.length).toFixed(1) : '-';
+
+    let rows = pResults.map(r => {
+      const status = r.won
+        ? '<span class="status-badge solved">Solved</span>'
+        : '<span class="status-badge failed">Failed</span>';
+      let dots = '';
+      try {
+        const guessWords = Array.isArray(r.guesses) ? r.guesses : JSON.parse(r.guesses);
+        dots = buildProgressDots(guessWords, word);
+      } catch (e) { dots = '-'; }
+      return `<tr>
+        <td><strong>${r.student_name}</strong></td>
+        <td>${status}</td>
+        <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
+        <td><div class="dot-progress">${dots}</div></td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="period-section open">
+      <div class="period-section-header" onclick="togglePeriodSection(this)">
+        <span class="period-label">Period ${p}</span>
+        <span class="period-count">${pResults.length} student${pResults.length !== 1 ? 's' : ''}</span>
+        <span class="period-solve-rate">${pSolved}/${pResults.length} solved &middot; avg ${pAvg}</span>
+        <span class="chevron-period">&#9660;</span>
+      </div>
+      <div class="period-section-body">
+        <table>
+          <thead><tr><th>Name</th><th>Status</th><th>Guesses</th><th>Progress</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 async function renderHistoryForDate(dateStr) {
   if (!teacher) return;
   const code = teacher.code;
@@ -1440,7 +1550,7 @@ async function renderHistoryForDate(dateStr) {
     const word = words.length ? words[0].word.toUpperCase() : null;
 
     // Get results for this date
-    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${dateStr}&select=*&order=student_name.asc`);
+    const rRes = await sb(`results?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${dateStr}&select=*&order=period.asc,student_name.asc`);
     const results = await rRes.json();
 
     if (!word && !results.length) {
@@ -1456,74 +1566,34 @@ async function renderHistoryForDate(dateStr) {
     const displayDate = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
     let html = `
-      <div class="history-day-card expanded" style="cursor:default;">
-        <div class="history-day-header">
+      <div style="margin-bottom:16px;">
+        <div class="history-day-header" style="margin-bottom:8px;">
           <span class="date">${displayDate}</span>
           ${word ? `<span class="word-badge">${word}</span>` : ''}
           <span class="count">${total} student${total !== 1 ? 's' : ''}</span>
         </div>
-        <div class="history-stats">
+        <div class="history-stats" style="border-top:none;padding-top:0;">
           Solved: <span>${solved}/${total}</span> &nbsp; Avg Guesses: <span>${avg}</span>
         </div>
-        <div class="history-detail" style="max-height:none;">`;
+      </div>`;
 
     if (results.length) {
-      html += `<table>
-        <thead><tr><th>Name</th><th>Period</th><th>Status</th><th>Guesses</th><th>Progress</th></tr></thead>
-        <tbody>`;
-      html += results.map(r => {
-        const status = r.won
-          ? '<span class="status-badge solved">Solved</span>'
-          : '<span class="status-badge failed">Failed</span>';
-        let dots = '';
-        try {
-          const guessWords = Array.isArray(r.guesses) ? r.guesses : JSON.parse(r.guesses);
-          if (word && guessWords.length) {
-            dots = guessWords.map(g => {
-              const target = word;
-              const result = Array(5).fill('absent');
-              const tc = {};
-              for (let i = 0; i < 5; i++) {
-                if (g[i] === target[i]) result[i] = 'correct';
-                else tc[target[i]] = (tc[target[i]] || 0) + 1;
-              }
-              for (let i = 0; i < 5; i++) {
-                if (result[i] !== 'correct' && tc[g[i]] > 0) { result[i] = 'present'; tc[g[i]]--; }
-              }
-              return result.map(c => {
-                const color = c === 'correct' ? 'var(--green)' : c === 'present' ? 'var(--yellow)' : 'var(--gray)';
-                return `<span style="background:${color}"></span>`;
-              }).join('');
-            }).join(' ');
-          }
-        } catch (e) { dots = '-'; }
-        return `<tr>
-          <td><strong>${r.student_name}</strong></td>
-          <td>P${r.period}</td>
-          <td>${status}</td>
-          <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
-          <td><div class="dot-progress">${dots}</div></td>
-        </tr>`;
-      }).join('');
-      html += `</tbody></table>`;
+      html += buildPeriodSections(results, word);
     } else {
       html += '<p style="color:#aaa;text-align:center;padding:16px;">No student results.</p>';
     }
 
-    html += `</div></div>`;
-
-    // Also show a summary list of all available dates below
-    html += '<h3 style="margin:20px 0 12px;">All Past Games</h3>';
+    // Summary list of all available dates
+    html += '<h3 style="margin:24px 0 12px;">All Past Games</h3>';
     html += historyDays.map(day => {
       const isActive = day.play_date === dateStr;
       const d = new Date(day.play_date + 'T12:00:00');
       const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
-      return `<div class="history-day-card${isActive ? ' expanded' : ''}" onclick="historyGoToDate('${day.play_date}')" style="padding:12px 16px;margin-bottom:8px;${isActive ? 'border-left:4px solid var(--accent);' : ''}">
+      return `<div class="history-day-card" onclick="historyGoToDate('${day.play_date}')" style="padding:12px 16px;margin-bottom:8px;${isActive ? 'border-left:4px solid var(--accent);background:#f8f9ff;' : ''}">
         <div class="history-day-header">
           <span class="date" style="font-size:.95rem;">${weekday}, ${label}</span>
           <span class="word-badge">${day.word.toUpperCase()}</span>
-          <span class="chevron">${isActive ? '&#9654;' : ''}</span>
         </div>
       </div>`;
     }).join('');
