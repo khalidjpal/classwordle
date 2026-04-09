@@ -686,7 +686,9 @@ function sb(endpoint, options = {}) {
     'Content-Type': 'application/json',
     'Prefer': options.prefer || 'return=representation'
   };
-  return fetch(url, { headers, ...options });
+  const { prefer, ...fetchOpts } = options;
+  console.log('[SB]', options.method || 'GET', url);
+  return fetch(url, { ...fetchOpts, headers });
 }
 
 function todayStr() {
@@ -750,16 +752,24 @@ async function studentLogin() {
   }
   errEl.style.display = 'none';
 
-  // Check class exists
+  console.log('[LOGIN] Attempting login:', { first, last, code, period: selectedPeriod });
+
+  // Check class exists (case-insensitive)
   try {
-    const res = await sb(`classes?class_code=eq.${encodeURIComponent(code)}&select=id`);
+    const res = await sb(`classes?class_code=ilike.${encodeURIComponent(code)}&select=id,class_code`);
     const classes = await res.json();
+    console.log('[LOGIN] Class lookup result:', classes);
     if (!classes.length) {
       errEl.textContent = 'Class code not found. Ask your teacher for the code.';
       errEl.style.display = 'block';
       return;
     }
+    // Use the exact class_code from the database for subsequent queries
+    const dbCode = classes[0].class_code;
+    console.log('[LOGIN] Using DB class_code:', dbCode);
+    var classCode = dbCode;
   } catch (e) {
+    console.error('[LOGIN] Class lookup error:', e);
     errEl.textContent = 'Connection error. Please try again.';
     errEl.style.display = 'block';
     return;
@@ -767,15 +777,19 @@ async function studentLogin() {
 
   // Get today's word
   try {
-    const res = await sb(`daily_words?class_code=eq.${encodeURIComponent(code)}&play_date=eq.${todayStr()}&select=word`);
+    console.log('[LOGIN] Fetching word for date:', todayStr());
+    const res = await sb(`daily_words?class_code=eq.${encodeURIComponent(classCode)}&play_date=eq.${todayStr()}&select=word`);
     const words = await res.json();
+    console.log('[LOGIN] Word lookup result:', words);
     if (!words.length) {
       errEl.textContent = 'No word set for today yet. Ask your teacher!';
       errEl.style.display = 'block';
       return;
     }
     targetWord = words[0].word.toUpperCase();
+    console.log('[LOGIN] Target word loaded');
   } catch (e) {
+    console.error('[LOGIN] Word lookup error:', e);
     errEl.textContent = 'Connection error. Please try again.';
     errEl.style.display = 'block';
     return;
@@ -783,16 +797,20 @@ async function studentLogin() {
 
   // Check if already played
   try {
-    const res = await sb(`results?class_code=eq.${encodeURIComponent(code)}&first_name=eq.${encodeURIComponent(first)}&last_name=eq.${encodeURIComponent(last)}&period=eq.${selectedPeriod}&play_date=eq.${todayStr()}&select=id`);
+    const res = await sb(`results?class_code=eq.${encodeURIComponent(classCode)}&first_name=ilike.${encodeURIComponent(first)}&last_name=ilike.${encodeURIComponent(last)}&period=eq.${selectedPeriod}&play_date=eq.${todayStr()}&select=id`);
     const existing = await res.json();
+    console.log('[LOGIN] Already played check:', existing);
     if (existing.length) {
       errEl.textContent = "You've already played today!";
       errEl.style.display = 'block';
       return;
     }
-  } catch (e) { /* proceed */ }
+  } catch (e) {
+    console.error('[LOGIN] Already-played check error:', e);
+  }
 
-  student = { first, last, code, period: selectedPeriod };
+  student = { first, last, code: classCode, period: selectedPeriod };
+  console.log('[LOGIN] Success, starting game');
   startGame();
 }
 
