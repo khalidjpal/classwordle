@@ -932,6 +932,14 @@ tr.att-row.missing td { background: #fce4ec; }
 .score-pill.yellow { background: #fffde7; color: #f57f17; }
 .score-pill.red    { background: #fce4ec; color: #c62828; }
 
+/* ── VOID DAY ── */
+.void-tag {
+  font-family: 'Nunito', sans-serif; font-size: .7rem; font-weight: 700;
+  color: #bbb; margin-left: 6px;
+  background: #f5f5f5; border-radius: 8px; padding: 1px 7px;
+}
+.period-label.voided { color: #bbb; }
+
 /* ── EXCLUDE DAY ── */
 .exclude-btn {
   font-size: .7rem; font-family: 'Nunito', sans-serif; font-weight: 700;
@@ -2117,15 +2125,31 @@ function buildPeriodSections(results, word, dateStr) {
     const rosterTotal = hasRoster && roster.length ? roster.length : pResults.length;
 
     const isExcluded = dateStr && excludedDays.has(`${p}|${dateStr}`);
+    // Void: < 5% of rostered students submitted (only meaningful when roster exists)
+    const isVoid = dateStr && !isExcluded && roster.length > 0
+      && (pResults.length / roster.length) < 0.05;
+
+    let periodLabelClass = '';
+    let periodTag = '';
+    let excludeBtn = '';
+    if (isExcluded) {
+      periodLabelClass = ' excluded-period';
+      periodTag = '<span class="excluded-tag">(excluded)</span>';
+      excludeBtn = `<button class="exclude-btn undo" onclick="unexcludeDay(${p},'${dateStr}',event)">Undo Exclude</button>`;
+    } else if (isVoid) {
+      periodLabelClass = ' voided';
+      periodTag = '<span class="void-tag">Void — Low Participation</span>';
+      // No exclude button for void days (already not counted)
+    } else if (dateStr) {
+      excludeBtn = `<button class="exclude-btn" onclick="excludeDay(${p},'${dateStr}',event)">Exclude Day</button>`;
+    }
+
     return `<div class="period-section">
       <div class="period-section-header" onclick="togglePeriodSection(this)">
-        <span class="period-label${isExcluded ? ' excluded-period' : ''}">Period ${p}${isExcluded ? '<span class="excluded-tag">(excluded)</span>' : ''}</span>
+        <span class="period-label${periodLabelClass}">Period ${p}${periodTag}</span>
         <span class="period-count">${submitted}/${rosterTotal} submitted</span>
         <span class="period-solve-rate">${pSolved} solved &middot; avg ${pAvg}</span>
-        ${dateStr ? (isExcluded
-          ? `<button class="exclude-btn undo" onclick="unexcludeDay(${p},'${dateStr}',event)">Undo Exclude</button>`
-          : `<button class="exclude-btn" onclick="excludeDay(${p},'${dateStr}',event)">Exclude Day</button>`
-        ) : ''}
+        ${excludeBtn}
         <span class="chevron-period">&#9660;</span>
       </div>
       <div class="period-section-body">
@@ -2291,6 +2315,12 @@ async function openStudentModal(studentName, period) {
 
     if (!days.length) { body.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">No game days found.</p>'; return; }
 
+    const rosterSize = (classRoster[period] || []).length;
+
+    // Count total submissions per date (for void check)
+    const submissionsPerDate = {};
+    allResults.forEach(r => { submissionsPerDate[r.play_date] = (submissionsPerDate[r.play_date] || 0) + 1; });
+
     // Build a map: date → best matching result for this student
     const resultByDate = {};
     allResults.forEach(r => {
@@ -2303,10 +2333,18 @@ async function openStudentModal(studentName, period) {
     });
 
     const rows = days.map(day => {
-      const d = new Date(day.play_date + 'T12:00:00');
+      const date = day.play_date;
+      // Skip void days (< 5% participation) and manually excluded days
+      if (excludedDays.has(`${period}|${date}`)) return '';
+      if (rosterSize > 0) {
+        const pct = (submissionsPerDate[date] || 0) / rosterSize;
+        if (pct < 0.05) return '';
+      }
+
+      const d = new Date(date + 'T12:00:00');
       const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
-      const result = resultByDate[day.play_date];
+      const result = resultByDate[date];
       let badge, badgeClass;
       if (!result) { badge = 'Not attempted'; badgeClass = 'miss'; }
       else if (result.won) { badge = `Solved (${result.guess_count}/6)`; badgeClass = 'won'; }
@@ -2316,9 +2354,9 @@ async function openStudentModal(studentName, period) {
         <span class="profile-word">${day.word.toUpperCase()}</span>
         <span class="profile-badge ${badgeClass}">${badge}</span>
       </div>`;
-    }).join('');
+    }).filter(r => r).join('');
 
-    body.innerHTML = rows || '<p style="color:#aaa;text-align:center;padding:20px;">No history found.</p>';
+    body.innerHTML = rows || '<p style="color:#aaa;text-align:center;padding:20px;">No counted game days found.</p>';
   } catch (e) {
     console.error('[PROFILE] Error:', e);
     body.innerHTML = '<p style="color:#c62828;text-align:center;padding:20px;">Error loading history.</p>';
@@ -2401,7 +2439,11 @@ async function loadWeekly() {
       const activeDates = weekDates.filter(d => {
         if (!wordByDate[d]) return false;
         if (excludedDays.has(`${p}|${d}`)) return false;
-        return (resultsByPeriodDate[`${p}|${d}`] || []).length > 0;
+        const dayCount = (resultsByPeriodDate[`${p}|${d}`] || []).length;
+        if (dayCount === 0) return false;
+        // Void: < 5% of rostered students submitted
+        if (roster.length > 0 && dayCount / roster.length < 0.05) return false;
+        return true;
       });
 
       const maxPts = activeDates.length * 2;
