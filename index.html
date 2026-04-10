@@ -738,7 +738,8 @@ tr:hover td { background: #fafbff; }
 }
 .order-btn:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent); }
 .order-btn:disabled { opacity: 0.28; cursor: default; }
-.order-save-row { display: flex; gap: 8px; }
+.order-save-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.order-status { font-size: .82rem; font-weight: 700; }
 .order-save-btn {
   padding: 7px 20px;
   border: none; border-radius: 8px;
@@ -2111,44 +2112,25 @@ function sortByLastName(names) {
   });
 }
 
-function applyRosterOrder(period, names) {
-  const customOrder = classRosterOrder[period];
-  if (!customOrder || !customOrder.length) return sortByLastName(names);
-  const nameSet = new Set(names);
-  const ordered = customOrder.filter(n => nameSet.has(n));
-  const remaining = sortByLastName(names.filter(n => !ordered.includes(n)));
-  return [...ordered, ...remaining];
-}
-
 async function loadRoster() {
   if (!teacher) return;
   classRoster = { 1: [], 2: [], 3: [], 4: [], 5: [] };
-  classRosterOrder = { 1: null, 2: null, 3: null, 4: null, 5: null };
+  classRosterOrder = { 1: false, 2: false, 3: false, 4: false, 5: false };
   try {
-    const [rosterRes, orderRes] = await Promise.all([
-      sb(`rosters?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,student_name&order=period.asc`),
-      sb(`roster_order?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,ordered_names`)
-    ]);
-
-    if (rosterRes.status < 400) {
-      const rows = await rosterRes.json();
-      console.log('[ROSTER] Loaded', rows.length, 'roster entries');
-      rows.forEach(r => {
-        if (!classRoster[r.period]) classRoster[r.period] = [];
-        classRoster[r.period].push(r.student_name);
-      });
-    } else {
+    const res = await sb(
+      `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,student_name,order_index&order=period.asc,order_index.asc.nullslast,student_name.asc`
+    );
+    if (res.status >= 400) {
       console.error('[ROSTER] Load failed (table may not exist)');
+      return;
     }
-
-    if (orderRes.status < 400) {
-      const orderRows = await orderRes.json();
-      orderRows.forEach(r => { classRosterOrder[r.period] = r.ordered_names; });
-    }
-    // (roster_order table may not exist yet — silently ignore)
-
-    [1,2,3,4,5].forEach(p => {
-      classRoster[p] = applyRosterOrder(p, classRoster[p] || []);
+    const rows = await res.json();
+    console.log('[ROSTER] Loaded', rows.length, 'roster entries');
+    rows.forEach(r => {
+      classRoster[r.period].push(r.student_name);
+      if (r.order_index !== null && r.order_index !== undefined) {
+        classRosterOrder[r.period] = true;
+      }
     });
   } catch (e) {
     console.error('[ROSTER] Load error:', e);
@@ -2159,7 +2141,7 @@ function renderRosterTab() {
   const container = document.getElementById('roster-periods');
   container.innerHTML = [1,2,3,4,5].map(p => {
     const names = classRoster[p] || [];
-    const hasCustomOrder = !!(classRosterOrder[p] && classRosterOrder[p].length);
+    const hasCustomOrder = !!classRosterOrder[p];
     return `<div class="roster-period">
       <h3>Period ${p} <span style="font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:700;color:#888;">(${names.length} students)</span>${hasCustomOrder ? '<span class="custom-order-badge">Custom order</span>' : ''}</h3>
       <textarea id="roster-ta-${p}" placeholder="Paste student names, one per line...">${names.join('\n')}</textarea>
@@ -2211,8 +2193,9 @@ function renderOrderList(period) {
       </div>`).join('')}
     </div>
     <div class="order-save-row">
-      <button class="order-save-btn" onclick="saveOrder(${period})">Save Order</button>
+      <button class="order-save-btn" id="order-save-btn-${period}" onclick="saveOrder(${period})">Save Order</button>
       <button class="order-cancel-btn" onclick="toggleEditOrder(${period})">Cancel</button>
+      <span class="order-status" id="order-status-${period}"></span>
     </div>`;
 }
 
@@ -2226,39 +2209,73 @@ function moveStudent(period, idx, direction) {
 
 async function saveOrder(period) {
   const names = editOrderState[period];
+  const statusEl = document.getElementById(`order-status-${period}`);
+  const saveBtn = document.getElementById(`order-save-btn-${period}`);
+
+  if (statusEl) { statusEl.style.color = '#888'; statusEl.textContent = 'Saving…'; }
+  if (saveBtn) saveBtn.disabled = true;
+
   try {
-    const res = await sb('roster_order', {
-      method: 'POST',
-      headers: { 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify({ class_code: teacher.code, period, ordered_names: names })
-    });
-    if (res.status >= 400) {
-      const err = await res.json();
-      console.error('[ORDER] Save failed:', err);
-      showToast('Could not save order — see console for details.');
+    // Delete all existing rows for this period
+    const delRes = await sb(
+      `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}`,
+      { method: 'DELETE' }
+    );
+    if (delRes.status >= 400) {
+      const err = await delRes.json();
+      console.error('[ORDER] Delete failed:', err);
+      if (statusEl) { statusEl.style.color = '#c62828'; statusEl.textContent = `Error: ${err.message || 'Could not delete old rows'}`; }
+      if (saveBtn) saveBtn.disabled = false;
       return;
     }
+
+    // Reinsert with order_index reflecting new positions
+    const rows = names.map((n, i) => ({ class_code: teacher.code, period, student_name: n, order_index: i }));
+    const insRes = await sb('rosters', { method: 'POST', body: JSON.stringify(rows) });
+    if (insRes.status >= 400) {
+      const err = await insRes.json();
+      console.error('[ORDER] Insert failed:', err);
+      if (statusEl) { statusEl.style.color = '#c62828'; statusEl.textContent = `Error: ${err.message || 'Could not save order'}`; }
+      if (saveBtn) saveBtn.disabled = false;
+      return;
+    }
+
+    classRosterOrder[period] = true;
+    classRoster[period] = names;
+    if (statusEl) { statusEl.style.color = 'var(--green)'; statusEl.textContent = '✓ Order saved!'; }
+    showToast(`Period ${period} order saved!`);
+    setTimeout(() => renderRosterTab(), 1200); // brief delay so user sees success msg
   } catch (e) {
     console.error('[ORDER] Save error:', e);
-    showToast('Network error saving order.');
-    return;
+    if (statusEl) { statusEl.style.color = '#c62828'; statusEl.textContent = 'Network error — check connection'; }
+    if (saveBtn) saveBtn.disabled = false;
   }
-  classRosterOrder[period] = names;
-  classRoster[period] = names;
-  showToast(`Period ${period} order saved!`);
-  renderRosterTab(); // re-render to show badge and updated chips
 }
 
 async function resetToAlpha(period) {
+  const sorted = sortByLastName(classRoster[period] || []);
   try {
-    await sb(`roster_order?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}`, { method: 'DELETE' });
+    const delRes = await sb(
+      `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}`,
+      { method: 'DELETE' }
+    );
+    if (delRes.status >= 400) {
+      showToast('Error resetting order — check console.');
+      return;
+    }
+    if (sorted.length) {
+      // Reinsert WITHOUT order_index so DB defaults to null → alpha sort on load
+      const rows = sorted.map(n => ({ class_code: teacher.code, period, student_name: n }));
+      await sb('rosters', { method: 'POST', body: JSON.stringify(rows) });
+    }
+    classRosterOrder[period] = false;
+    classRoster[period] = sorted;
+    showToast(`Period ${period} reset to alphabetical!`);
+    renderRosterTab();
   } catch (e) {
     console.error('[ORDER] Reset error:', e);
+    showToast('Network error resetting order.');
   }
-  classRosterOrder[period] = null;
-  classRoster[period] = sortByLastName(classRoster[period] || []);
-  showToast(`Period ${period} reset to alphabetical!`);
-  renderRosterTab();
 }
 
 async function saveRosterPeriod(period) {
@@ -2305,11 +2322,8 @@ async function saveRosterPeriod(period) {
       console.log('[ROSTER] Saved period', period, ':', data.length, 'entries');
     }
 
-    // Reset custom order when roster text changes; re-sort alphabetically
-    classRosterOrder[period] = null;
-    try {
-      await sb(`roster_order?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}`, { method: 'DELETE' });
-    } catch (_) {}
+    // New roster text clears any custom order — inserted rows have no order_index
+    classRosterOrder[period] = false;
     classRoster[period] = sortByLastName(names);
 
     statusEl.style.color = 'var(--green)';
