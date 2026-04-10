@@ -36,6 +36,33 @@ CREATE TABLE IF NOT EXISTS results (
   UNIQUE (class_code, first_name, last_name, period, play_date)
 );
 
+-- 4. Roster order table (stores custom student ordering per period)
+CREATE TABLE IF NOT EXISTS roster_order (
+  class_code TEXT NOT NULL,
+  period INT NOT NULL CHECK (period BETWEEN 1 AND 5),
+  ordered_names JSONB NOT NULL DEFAULT '[]',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (class_code, period)
+);
+
+ALTER TABLE roster_order ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read on roster_order"
+  ON roster_order FOR SELECT
+  USING (true);
+
+CREATE POLICY "Allow public insert on roster_order"
+  ON roster_order FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Allow public update on roster_order"
+  ON roster_order FOR UPDATE
+  USING (true);
+
+CREATE POLICY "Allow public delete on roster_order"
+  ON roster_order FOR DELETE
+  USING (true);
+
 -- =============================================
 -- Indexes
 -- =============================================
