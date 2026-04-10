@@ -1055,7 +1055,7 @@ let gameOver = false;
 let activePeriodFilter = 'all';
 let dashboardInterval = null;
 let classRoster = {}; // { 1: ['name1','name2'], 2: [...], ... }
-let classRosterOrder = { 1: null, 2: null, 3: null, 4: null, 5: null }; // null = alphabetical, array = custom order
+let classRosterOrder = { 1: false, 2: false, 3: false, 4: false, 5: false }; // false = alpha sort, true = custom order_index
 let editOrderState = {}; // { period: [names currently being reordered in edit mode] }
 
 // ═══════════════════════════════════════════
@@ -2116,18 +2116,20 @@ async function loadRoster() {
   if (!teacher) return;
   classRoster = { 1: [], 2: [], 3: [], 4: [], 5: [] };
   classRosterOrder = { 1: false, 2: false, 3: false, 4: false, 5: false };
+  // raw rows per period, keyed by student_name → order_index (null if unset)
+  const rawByPeriod = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+
   try {
-    // Try fetching with order_index (available after running the ALTER TABLE migration)
+    // Try fetching with order_index (requires ALTER TABLE migration)
     let res = await sb(
-      `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,student_name,order_index&order=period.asc,order_index.asc.nullslast,student_name.asc`
+      `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,student_name,order_index&order=period.asc`
     );
     let hasOrderIndex = res.status < 400;
 
     if (!hasOrderIndex) {
-      // order_index column doesn't exist yet — fall back to basic query
-      console.warn('[ROSTER] order_index column not found, falling back (run the ALTER TABLE migration)');
+      console.warn('[ROSTER] order_index column not found — run the ALTER TABLE migration. Falling back.');
       res = await sb(
-        `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,student_name&order=period.asc,student_name.asc`
+        `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,student_name&order=period.asc`
       );
     }
 
@@ -2137,18 +2139,36 @@ async function loadRoster() {
     }
 
     const rows = await res.json();
-    console.log('[ROSTER] Loaded', rows.length, 'roster entries');
+    console.log('[ROSTER] Loaded', rows.length, 'roster entries, hasOrderIndex=', hasOrderIndex);
+
     rows.forEach(r => {
-      classRoster[r.period].push(r.student_name);
-      if (hasOrderIndex && r.order_index !== null && r.order_index !== undefined) {
-        classRosterOrder[r.period] = true;
-      }
+      rawByPeriod[r.period].push({ name: r.student_name, idx: hasOrderIndex ? r.order_index : null });
     });
 
-    // Without order_index, sort by last name client-side
-    if (!hasOrderIndex) {
-      [1,2,3,4,5].forEach(p => { classRoster[p] = sortByLastName(classRoster[p]); });
-    }
+    // For each period: if ANY student has order_index set → sort by order_index.
+    // Otherwise → sort by last name alphabetically.
+    [1, 2, 3, 4, 5].forEach(p => {
+      const items = rawByPeriod[p];
+      const hasCustom = items.some(s => s.idx !== null && s.idx !== undefined);
+      classRosterOrder[p] = hasCustom;
+      if (hasCustom) {
+        // Sort by order_index ascending; any nulls go last then alpha
+        items.sort((a, b) => {
+          if (a.idx === null || a.idx === undefined) return 1;
+          if (b.idx === null || b.idx === undefined) return -1;
+          return a.idx - b.idx;
+        });
+      } else {
+        // No custom order — sort by last name
+        items.sort((a, b) => {
+          const lastA = a.name.trim().split(/\s+/).pop().toLowerCase();
+          const lastB = b.name.trim().split(/\s+/).pop().toLowerCase();
+          return lastA.localeCompare(lastB);
+        });
+      }
+      classRoster[p] = items.map(s => s.name);
+    });
+
   } catch (e) {
     console.error('[ROSTER] Load error:', e);
   }
@@ -2233,35 +2253,35 @@ async function saveOrder(period) {
   if (saveBtn) saveBtn.disabled = true;
 
   try {
-    // Delete all existing rows for this period
-    const delRes = await sb(
-      `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}`,
-      { method: 'DELETE' }
-    );
-    if (delRes.status >= 400) {
-      const err = await delRes.json();
-      console.error('[ORDER] Delete failed:', err);
-      if (statusEl) { statusEl.style.color = '#c62828'; statusEl.textContent = `Error: ${err.message || 'Could not delete old rows'}`; }
+    // PATCH each student's order_index individually so their row is identified
+    // by class_code + period + student_name (no delete/reinsert needed)
+    const patches = await Promise.all(names.map((name, i) =>
+      sb(
+        `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}&student_name=eq.${encodeURIComponent(name)}`,
+        { method: 'PATCH', body: JSON.stringify({ order_index: i }) }
+      )
+    ));
+
+    const firstError = patches.find(r => r.status >= 400);
+    if (firstError) {
+      let errMsg = 'Could not update order_index';
+      try { const e = await firstError.json(); errMsg = e.message || errMsg; } catch (_) {}
+      console.error('[ORDER] PATCH failed:', errMsg);
+      if (statusEl) { statusEl.style.color = '#c62828'; statusEl.textContent = `Error: ${errMsg}`; }
       if (saveBtn) saveBtn.disabled = false;
       return;
     }
 
-    // Reinsert with order_index reflecting new positions
-    const rows = names.map((n, i) => ({ class_code: teacher.code, period, student_name: n, order_index: i }));
-    const insRes = await sb('rosters', { method: 'POST', body: JSON.stringify(rows) });
-    if (insRes.status >= 400) {
-      const err = await insRes.json();
-      console.error('[ORDER] Insert failed:', err);
-      if (statusEl) { statusEl.style.color = '#c62828'; statusEl.textContent = `Error: ${err.message || 'Could not save order'}`; }
-      if (saveBtn) saveBtn.disabled = false;
-      return;
-    }
+    console.log('[ORDER] PATCH succeeded for', names.length, 'students in period', period);
 
-    classRosterOrder[period] = true;
-    classRoster[period] = names;
+    // Reload from Supabase to confirm the new order persisted
+    await loadRoster();
+
     if (statusEl) { statusEl.style.color = 'var(--green)'; statusEl.textContent = '✓ Order saved!'; }
     showToast(`Period ${period} order saved!`);
-    setTimeout(() => renderRosterTab(), 1200); // brief delay so user sees success msg
+
+    // Brief pause so user sees the success message, then re-render
+    setTimeout(() => renderRosterTab(), 1200);
   } catch (e) {
     console.error('[ORDER] Save error:', e);
     if (statusEl) { statusEl.style.color = '#c62828'; statusEl.textContent = 'Network error — check connection'; }
@@ -2270,23 +2290,20 @@ async function saveOrder(period) {
 }
 
 async function resetToAlpha(period) {
-  const sorted = sortByLastName(classRoster[period] || []);
   try {
-    const delRes = await sb(
+    // Set order_index = null for all students in this period
+    const res = await sb(
       `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}`,
-      { method: 'DELETE' }
+      { method: 'PATCH', body: JSON.stringify({ order_index: null }) }
     );
-    if (delRes.status >= 400) {
-      showToast('Error resetting order — check console.');
+    if (res.status >= 400) {
+      let errMsg = 'Could not reset order';
+      try { const e = await res.json(); errMsg = e.message || errMsg; } catch (_) {}
+      showToast(`Error: ${errMsg}`);
       return;
     }
-    if (sorted.length) {
-      // Reinsert WITHOUT order_index so DB defaults to null → alpha sort on load
-      const rows = sorted.map(n => ({ class_code: teacher.code, period, student_name: n }));
-      await sb('rosters', { method: 'POST', body: JSON.stringify(rows) });
-    }
-    classRosterOrder[period] = false;
-    classRoster[period] = sorted;
+    // Reload from Supabase to get the updated (alpha-sorted) list
+    await loadRoster();
     showToast(`Period ${period} reset to alphabetical!`);
     renderRosterTab();
   } catch (e) {
