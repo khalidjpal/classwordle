@@ -826,6 +826,99 @@ tr.att-row.missing td { background: #fce4ec; }
   .kb-row { gap: 2px; margin-bottom: 2px; }
   .keyboard { padding: 3px 3px calc(env(safe-area-inset-bottom, 2px) + 2px); }
 }
+
+/* ── MODAL ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 200;
+  align-items: center; justify-content: center; padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+.modal-card {
+  background: #fff; border-radius: 20px;
+  width: 100%; max-width: 480px; max-height: 85vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  overflow: hidden;
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px 14px; border-bottom: 1px solid #f0f0f0;
+}
+.modal-header h3 { font-size: 1.1rem; color: var(--text); }
+.modal-close-btn {
+  background: none; border: none; font-size: 1.4rem;
+  cursor: pointer; color: #aaa; line-height: 1; padding: 0 4px;
+}
+.modal-close-btn:hover { color: var(--text); }
+.modal-body { overflow-y: auto; padding: 16px 20px; flex: 1; }
+.profile-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid #f5f5f5;
+  font-size: .9rem;
+}
+.profile-row:last-child { border-bottom: none; }
+.profile-date { color: #888; font-size: .82rem; min-width: 90px; }
+.profile-word {
+  font-family: 'Fredoka One', cursive; font-size: .9rem;
+  color: var(--accent); min-width: 60px;
+}
+.profile-badge {
+  padding: 3px 10px; border-radius: 12px;
+  font-size: .75rem; font-weight: 800; letter-spacing: .03em;
+}
+.profile-badge.won   { background: #e8f5e9; color: #2e7d32; }
+.profile-badge.lost  { background: #fff3e0; color: #e65100; }
+.profile-badge.miss  { background: #fce4ec; color: #c62828; }
+
+/* ── WEEKLY TAB ── */
+.weekly-period-block {
+  background: #fff; border-radius: 14px;
+  padding: 16px 20px; margin-bottom: 14px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+}
+.weekly-period-block h3 {
+  font-size: 1rem; color: var(--accent); margin-bottom: 4px;
+}
+.weekly-meta { font-size: .8rem; color: #888; margin-bottom: 12px; }
+.weekly-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.weekly-table th {
+  text-align: left; padding: 6px 8px;
+  border-bottom: 2px solid var(--light-gray);
+  font-size: .75rem; color: #888; text-transform: uppercase;
+}
+.weekly-table td { padding: 7px 8px; border-bottom: 1px solid #f5f5f5; }
+.score-pill {
+  display: inline-block; padding: 2px 10px; border-radius: 12px;
+  font-weight: 800; font-size: .85rem;
+}
+.score-pill.green  { background: #e8f5e9; color: #2e7d32; }
+.score-pill.yellow { background: #fffde7; color: #f57f17; }
+.score-pill.red    { background: #fce4ec; color: #c62828; }
+.week-label {
+  font-size: .82rem; color: #888; margin-bottom: 12px;
+}
+
+/* ── EXCLUDE DAY ── */
+.exclude-btn {
+  font-size: .7rem; font-family: 'Nunito', sans-serif; font-weight: 700;
+  padding: 2px 8px; border-radius: 8px; cursor: pointer;
+  border: 1px solid #ddd; background: #fff; color: #888;
+  margin-left: 6px; transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.exclude-btn:hover { background: #fce4ec; border-color: #ef9a9a; color: #c62828; }
+.exclude-btn.undo { background: #fff3e0; border-color: #ffcc80; color: #e65100; }
+.exclude-btn.undo:hover { background: #ffe0b2; }
+.period-label.excluded-period { text-decoration: line-through; color: #aaa; }
+.excluded-tag {
+  font-family: 'Nunito', sans-serif; font-size: .7rem; font-weight: 700;
+  color: #bbb; margin-left: 6px;
+}
+
+/* ── CLICKABLE CHIP ── */
+.roster-chip.clickable { cursor: pointer; }
+.roster-chip.clickable:hover { background: var(--accent); color: #fff; }
 </style>
 </head>
 <body>
@@ -942,6 +1035,7 @@ tr.att-row.missing td { background: #fce4ec; }
   <div class="dash-tabs">
     <button class="dash-tab active" onclick="switchDashTab('today', this)">Today</button>
     <button class="dash-tab" onclick="switchDashTab('history', this)">History</button>
+    <button class="dash-tab" onclick="switchDashTab('weekly', this)">Weekly</button>
     <button class="dash-tab" onclick="switchDashTab('roster', this)">Roster</button>
   </div>
 
@@ -1001,9 +1095,27 @@ tr.att-row.missing td { background: #fce4ec; }
     <div id="history-content"></div>
   </div>
 
+  <!-- WEEKLY PANEL -->
+  <div id="panel-weekly" class="dash-panel">
+    <div id="weekly-content" style="width:100%;max-width:900px;padding:0 4px;"></div>
+  </div>
+
   <!-- ROSTER PANEL -->
   <div id="panel-roster" class="dash-panel">
     <div id="roster-periods"></div>
+  </div>
+</div>
+
+<!-- ─── STUDENT PROFILE MODAL ─── -->
+<div id="student-modal" class="modal-overlay" onclick="closeStudentModal()">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="modal-student-name">Student History</h3>
+      <button class="modal-close-btn" onclick="closeStudentModal()">&#x2715;</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>
+    </div>
   </div>
 </div>
 
@@ -1034,6 +1146,7 @@ let dashboardInterval = null;
 let classRoster = {}; // { 1: ['name1','name2'], 2: [...], ... }
 let classRosterOrder = { 1: false, 2: false, 3: false, 4: false, 5: false }; // false = alpha sort, true = custom order_index
 let editOrderState = {}; // { period: [names currently being reordered in edit mode] }
+let excludedDays = new Set(); // Set of "period|date" strings e.g. "1|2026-04-09"
 
 // ═══════════════════════════════════════════
 // SUPABASE HELPERS
@@ -1217,7 +1330,7 @@ async function teacherLogin() {
   console.log('[TEACHER] Logged in, teacher object:', teacher);
   showScreen('teacher-dashboard');
   document.getElementById('dash-meta').textContent = `${name} \u2022 ${code} \u2022 ${todayStr()}`;
-  await loadRoster();
+  await Promise.all([loadRoster(), loadExcludedDays()]);
   loadDashboard();
   dashboardInterval = setInterval(loadDashboard, 5000);
 }
@@ -1798,6 +1911,7 @@ function switchDashTab(tab, btn) {
   document.querySelectorAll('.dash-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-' + tab).classList.add('active');
   if (tab === 'history') loadHistory();
+  if (tab === 'weekly') loadWeekly();
   if (tab === 'roster') renderRosterTab();
 }
 
@@ -1892,7 +2006,7 @@ function togglePeriodSection(el) {
   el.closest('.period-section').classList.toggle('open');
 }
 
-function buildPeriodSections(results, word) {
+function buildPeriodSections(results, word, dateStr) {
   const periods = [1, 2, 3, 4, 5];
   const hasRoster = Object.values(classRoster).some(arr => arr.length > 0);
   const allMatchedIds = new Set();
@@ -1969,11 +2083,16 @@ function buildPeriodSections(results, word) {
 
     const rosterTotal = hasRoster && roster.length ? roster.length : pResults.length;
 
+    const isExcluded = dateStr && excludedDays.has(`${p}|${dateStr}`);
     return `<div class="period-section">
       <div class="period-section-header" onclick="togglePeriodSection(this)">
-        <span class="period-label">Period ${p}</span>
+        <span class="period-label${isExcluded ? ' excluded-period' : ''}">Period ${p}${isExcluded ? '<span class="excluded-tag">(excluded)</span>' : ''}</span>
         <span class="period-count">${submitted}/${rosterTotal} submitted</span>
         <span class="period-solve-rate">${pSolved} solved &middot; avg ${pAvg}</span>
+        ${dateStr ? (isExcluded
+          ? `<button class="exclude-btn undo" onclick="unexcludeDay(${p},'${dateStr}',event)">Undo Exclude</button>`
+          : `<button class="exclude-btn" onclick="excludeDay(${p},'${dateStr}',event)">Exclude Day</button>`
+        ) : ''}
         <span class="chevron-period">&#9660;</span>
       </div>
       <div class="period-section-body">
@@ -2051,7 +2170,7 @@ async function renderHistoryForDate(dateStr) {
       </div>`;
 
     if (results.length) {
-      html += buildPeriodSections(results, word);
+      html += buildPeriodSections(results, word, dateStr);
     } else {
       html += '<p style="color:#aaa;text-align:center;padding:16px;">No student results.</p>';
     }
@@ -2075,6 +2194,222 @@ async function renderHistoryForDate(dateStr) {
   } catch (e) {
     console.error('[HISTORY] Error:', e);
     container.innerHTML = '<p style="color:#c0392b;text-align:center;padding:20px;">Error loading history.</p>';
+  }
+}
+
+// ═══════════════════════════════════════════
+// EXCLUDED DAYS
+// ═══════════════════════════════════════════
+async function loadExcludedDays() {
+  if (!teacher) return;
+  excludedDays = new Set();
+  try {
+    const res = await sb(`excluded_days?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,play_date`);
+    if (res.status < 400) {
+      const rows = await res.json();
+      rows.forEach(r => excludedDays.add(`${r.period}|${r.play_date}`));
+    }
+  } catch (e) { console.warn('[EXCLUDE] Could not load excluded_days:', e); }
+}
+
+async function excludeDay(period, dateStr, evt) {
+  evt.stopPropagation();
+  try {
+    const res = await sb('excluded_days', {
+      method: 'POST',
+      body: JSON.stringify({ class_code: teacher.code, period, play_date: dateStr })
+    });
+    if (res.status >= 400) { const e = await res.json(); showToast('Error: ' + (e.message || 'Could not exclude day')); return; }
+    excludedDays.add(`${period}|${dateStr}`);
+    showToast(`Period ${period} excluded for ${dateStr}`);
+    renderHistoryForDate(dateStr);
+  } catch (e) { showToast('Network error excluding day'); }
+}
+
+async function unexcludeDay(period, dateStr, evt) {
+  evt.stopPropagation();
+  try {
+    const res = await sb(`excluded_days?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}&play_date=eq.${dateStr}`, { method: 'DELETE' });
+    if (res.status >= 400) { const e = await res.json(); showToast('Error: ' + (e.message || 'Could not undo')); return; }
+    excludedDays.delete(`${period}|${dateStr}`);
+    showToast(`Period ${period} restored for ${dateStr}`);
+    renderHistoryForDate(dateStr);
+  } catch (e) { showToast('Network error restoring day'); }
+}
+
+// ═══════════════════════════════════════════
+// STUDENT PROFILE MODAL
+// ═══════════════════════════════════════════
+async function openStudentModal(studentName, period) {
+  const modal = document.getElementById('student-modal');
+  const body = document.getElementById('modal-body');
+  document.getElementById('modal-student-name').textContent = `${studentName} — Period ${period}`;
+  body.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
+  modal.classList.add('open');
+
+  try {
+    // Fetch all days where a word was set, and all results for this class
+    const [wRes, rRes] = await Promise.all([
+      sb(`daily_words?class_code=eq.${encodeURIComponent(teacher.code)}&select=play_date,word&order=play_date.desc`),
+      sb(`results?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}&select=student_name,play_date,won,guess_count&order=play_date.desc`)
+    ]);
+    const days = wRes.status < 400 ? await wRes.json() : [];
+    const allResults = rRes.status < 400 ? await rRes.json() : [];
+
+    if (!days.length) { body.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">No game days found.</p>'; return; }
+
+    // Build a map: date → best matching result for this student
+    const resultByDate = {};
+    allResults.forEach(r => {
+      const score = nameSimilarity(r.student_name, studentName);
+      if (score >= 0.75) {
+        if (!resultByDate[r.play_date] || score > resultByDate[r.play_date].score) {
+          resultByDate[r.play_date] = { ...r, score };
+        }
+      }
+    });
+
+    const rows = days.map(day => {
+      const d = new Date(day.play_date + 'T12:00:00');
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const result = resultByDate[day.play_date];
+      let badge, badgeClass;
+      if (!result) { badge = 'Not attempted'; badgeClass = 'miss'; }
+      else if (result.won) { badge = `Solved (${result.guess_count}/6)`; badgeClass = 'won'; }
+      else { badge = 'Attempted (failed)'; badgeClass = 'lost'; }
+      return `<div class="profile-row">
+        <span class="profile-date">${weekday}, ${label}</span>
+        <span class="profile-word">${day.word.toUpperCase()}</span>
+        <span class="profile-badge ${badgeClass}">${badge}</span>
+      </div>`;
+    }).join('');
+
+    body.innerHTML = rows || '<p style="color:#aaa;text-align:center;padding:20px;">No history found.</p>';
+  } catch (e) {
+    console.error('[PROFILE] Error:', e);
+    body.innerHTML = '<p style="color:#c62828;text-align:center;padding:20px;">Error loading history.</p>';
+  }
+}
+
+function closeStudentModal() {
+  document.getElementById('student-modal').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════
+// WEEKLY POINTS
+// ═══════════════════════════════════════════
+function getWeekDates() {
+  // Returns Mon–Fri date strings for the current school week
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const day = now.getDay(); // 0=Sun,1=Mon...6=Sat
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+  return [0,1,2,3,4].map(offset => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + offset);
+    return d.toISOString().slice(0, 10);
+  });
+}
+
+async function loadWeekly() {
+  if (!teacher) return;
+  const container = document.getElementById('weekly-content');
+  container.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px;">Loading…</p>';
+
+  const weekDates = getWeekDates();
+  const code = teacher.code;
+
+  try {
+    // Fetch all daily_words and results for this week
+    const dateFilter = weekDates.map(d => `play_date.eq.${d}`).join(',');
+    const [wRes, rRes] = await Promise.all([
+      sb(`daily_words?class_code=eq.${encodeURIComponent(code)}&select=play_date,word&order=play_date.asc&or=(${dateFilter})`),
+      sb(`results?class_code=eq.${encodeURIComponent(code)}&select=student_name,period,play_date,won&or=(${dateFilter})`)
+    ]);
+    const wordDays = wRes.status < 400 ? await wRes.json() : [];
+    const allResults = rRes.status < 400 ? await rRes.json() : [];
+
+    // Map: date → word (to know which days had a word)
+    const wordByDate = {};
+    wordDays.forEach(w => { wordByDate[w.play_date] = w.word; });
+
+    // Map: "period|date" → results array
+    const resultsByPeriodDate = {};
+    allResults.forEach(r => {
+      const key = `${r.period}|${r.play_date}`;
+      if (!resultsByPeriodDate[key]) resultsByPeriodDate[key] = [];
+      resultsByPeriodDate[key].push(r);
+    });
+
+    const dayLabels = weekDates.map(d => {
+      const dt = new Date(d + 'T12:00:00');
+      return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    });
+
+    const mon = new Date(weekDates[0] + 'T12:00:00');
+    const fri = new Date(weekDates[4] + 'T12:00:00');
+    const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    let html = `<div class="week-label">Week of ${fmt(mon)} – ${fmt(fri)}</div>`;
+
+    const periods = [1,2,3,4,5].filter(p => (classRoster[p] || []).length > 0);
+    if (!periods.length) { container.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px;">No roster set up yet.</p>'; return; }
+
+    periods.forEach(p => {
+      const roster = classRoster[p] || [];
+
+      // Active days for this period: word set + at least one submission + not excluded
+      const activeDates = weekDates.filter(d => {
+        if (!wordByDate[d]) return false;
+        if (excludedDays.has(`${p}|${d}`)) return false;
+        const key = `${p}|${d}`;
+        return (resultsByPeriodDate[key] || []).length > 0;
+      });
+
+      const maxPts = activeDates.length * 2;
+
+      // Column headers
+      const dayHeaders = activeDates.map(d => {
+        const dt = new Date(d + 'T12:00:00');
+        return `<th>${dt.toLocaleDateString('en-US', { weekday: 'short' })}<br><small>${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</small></th>`;
+      }).join('');
+
+      // Per-student rows
+      const studentRows = roster.map(name => {
+        let pts = 0;
+        const cells = activeDates.map(d => {
+          const dayResults = resultsByPeriodDate[`${p}|${d}`] || [];
+          const match = dayResults.find(r => nameSimilarity(r.student_name, name) >= 0.75);
+          if (match) { pts += 2; return `<td style="text-align:center;color:var(--green);">&#10003;</td>`; }
+          return `<td style="text-align:center;color:#ddd;">&#8212;</td>`;
+        }).join('');
+
+        const missed = activeDates.length - (pts / 2);
+        const pillClass = missed === 0 ? 'green' : missed === 1 ? 'yellow' : 'red';
+        return `<tr>
+          <td><strong>${name}</strong></td>
+          ${cells}
+          <td><span class="score-pill ${pillClass}">${pts}/${maxPts}</span></td>
+        </tr>`;
+      }).join('');
+
+      html += `<div class="weekly-period-block">
+        <h3>Period ${p}</h3>
+        <div class="weekly-meta">${activeDates.length} active day${activeDates.length !== 1 ? 's' : ''} this week &middot; max ${maxPts} pts</div>
+        ${activeDates.length === 0
+          ? '<p style="color:#aaa;font-size:.88rem;">No active days this week yet.</p>'
+          : `<table class="weekly-table">
+              <thead><tr><th>Student</th>${dayHeaders}<th>Score</th></tr></thead>
+              <tbody>${studentRows}</tbody>
+            </table>`
+        }
+      </div>`;
+    });
+
+    container.innerHTML = html;
+  } catch (e) {
+    console.error('[WEEKLY] Error:', e);
+    container.innerHTML = '<p style="color:#c62828;text-align:center;padding:20px;">Error loading weekly data.</p>';
   }
 }
 
@@ -2183,7 +2518,7 @@ function renderRosterTab() {
 
       <!-- Current roster chips -->
       <div class="roster-current" id="roster-chips-${p}" style="margin-top:10px;">
-        ${names.map(n => `<span class="roster-chip">${n}</span>`).join('')}
+        ${names.map(n => `<span class="roster-chip clickable" onclick="openStudentModal('${n.replace(/'/g,"\\'")}',${p})">${n}</span>`).join('')}
       </div>
     </div>`;
   }).join('');
