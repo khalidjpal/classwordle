@@ -1969,7 +1969,7 @@ function buildPeriodSections(results, word) {
 
     const rosterTotal = hasRoster && roster.length ? roster.length : pResults.length;
 
-    return `<div class="period-section open">
+    return `<div class="period-section">
       <div class="period-section-header" onclick="togglePeriodSection(this)">
         <span class="period-label">Period ${p}</span>
         <span class="period-count">${submitted}/${rosterTotal} submitted</span>
