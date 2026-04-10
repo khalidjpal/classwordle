@@ -2117,21 +2117,38 @@ async function loadRoster() {
   classRoster = { 1: [], 2: [], 3: [], 4: [], 5: [] };
   classRosterOrder = { 1: false, 2: false, 3: false, 4: false, 5: false };
   try {
-    const res = await sb(
+    // Try fetching with order_index (available after running the ALTER TABLE migration)
+    let res = await sb(
       `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,student_name,order_index&order=period.asc,order_index.asc.nullslast,student_name.asc`
     );
+    let hasOrderIndex = res.status < 400;
+
+    if (!hasOrderIndex) {
+      // order_index column doesn't exist yet — fall back to basic query
+      console.warn('[ROSTER] order_index column not found, falling back (run the ALTER TABLE migration)');
+      res = await sb(
+        `rosters?class_code=eq.${encodeURIComponent(teacher.code)}&select=period,student_name&order=period.asc,student_name.asc`
+      );
+    }
+
     if (res.status >= 400) {
-      console.error('[ROSTER] Load failed (table may not exist)');
+      console.error('[ROSTER] Load failed (rosters table may not exist)');
       return;
     }
+
     const rows = await res.json();
     console.log('[ROSTER] Loaded', rows.length, 'roster entries');
     rows.forEach(r => {
       classRoster[r.period].push(r.student_name);
-      if (r.order_index !== null && r.order_index !== undefined) {
+      if (hasOrderIndex && r.order_index !== null && r.order_index !== undefined) {
         classRosterOrder[r.period] = true;
       }
     });
+
+    // Without order_index, sort by last name client-side
+    if (!hasOrderIndex) {
+      [1,2,3,4,5].forEach(p => { classRoster[p] = sortByLastName(classRoster[p]); });
+    }
   } catch (e) {
     console.error('[ROSTER] Load error:', e);
   }
