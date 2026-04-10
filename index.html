@@ -60,6 +60,32 @@ h1, h2, h3 { font-family: 'Fredoka One', cursive; }
 .role-btn:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,.15); }
 .role-btn .icon { font-size: 2.5rem; display: block; margin-bottom: 8px; }
 
+/* ── TEACHER CORNER BUTTON ── */
+.teacher-corner-btn {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid rgba(180,120,140,0.3);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(100,60,80,0.65);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(4px);
+  transition: background .2s, color .2s, opacity .2s;
+  opacity: 0.7;
+  z-index: 10;
+}
+.teacher-corner-btn:hover {
+  background: rgba(255,255,255,0.85);
+  color: rgba(80,40,60,0.9);
+  opacity: 1;
+}
+
 /* ── LOGIN FORMS ── */
 #student-login, #teacher-login {
   justify-content: center;
@@ -752,7 +778,7 @@ tr.att-row.missing td { background: #fce4ec; }
 <body>
 
 <!-- ─── ROLE SELECT ─── -->
-<div id="role-screen" class="screen active">
+<div id="role-screen" class="screen">
   <h1>WordlePal</h1>
   <p class="subtitle">Do your warmup - Mr. Pal</p>
   <div class="role-buttons">
@@ -766,7 +792,7 @@ tr.att-row.missing td { background: #fce4ec; }
 </div>
 
 <!-- ─── STUDENT LOGIN ─── -->
-<div id="student-login" class="screen">
+<div id="student-login" class="screen active">
   <div class="login-card">
     <h2>Student Login</h2>
     <div id="student-error" class="error-msg"></div>
@@ -794,7 +820,7 @@ tr.att-row.missing td { background: #fce4ec; }
     </div>
     <button class="submit-btn" onclick="studentLogin()">Play!</button>
   </div>
-  <span class="back-link" onclick="showScreen('role-screen')">&#8592; Back</span>
+  <button class="teacher-corner-btn" onclick="showScreen('teacher-login')" title="Teacher Login">Teacher</button>
 </div>
 
 <!-- ─── TEACHER LOGIN ─── -->
@@ -819,7 +845,7 @@ tr.att-row.missing td { background: #fce4ec; }
     </div>
     <button class="submit-btn" onclick="teacherLogin()">View Dashboard</button>
   </div>
-  <span class="back-link" onclick="showScreen('role-screen')">&#8592; Back</span>
+  <span class="back-link" onclick="showScreen('student-login')">&#8592; Back</span>
 </div>
 
 <!-- ─── GAME SCREEN ─── -->
@@ -843,7 +869,7 @@ tr.att-row.missing td { background: #fce4ec; }
     <div class="result-grid" id="result-grid"></div>
     <button class="share-btn" onclick="copyResult()">&#x1F4CB; Copy Result</button>
     <br>
-    <button class="play-again-btn" onclick="showScreen('role-screen')">Home</button>
+    <button class="play-again-btn" onclick="showScreen('student-login')">Home</button>
   </div>
 </div>
 
@@ -856,7 +882,7 @@ tr.att-row.missing td { background: #fce4ec; }
     </div>
     <div class="dash-actions">
       <button class="export-btn" onclick="exportCSV()">&#x1F4E5; Export CSV</button>
-      <button class="logout-btn" onclick="showScreen('role-screen')">Logout</button>
+      <button class="logout-btn" onclick="showScreen('student-login')">Logout</button>
     </div>
   </div>
 
@@ -942,7 +968,7 @@ const CLASS_CODE = 'PAL';
 // ═══════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════
-let currentScreen = 'role-screen';
+let currentScreen = 'student-login';
 let student = null;    // { first, last, code, period }
 let teacher = null;    // { name, code }
 let targetWord = '';
