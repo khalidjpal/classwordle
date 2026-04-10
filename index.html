@@ -872,15 +872,51 @@ tr.att-row.missing td { background: #fce4ec; }
 .profile-badge.miss  { background: #fce4ec; color: #c62828; }
 
 /* ── WEEKLY TAB ── */
+.weekly-nav {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 18px; flex-wrap: wrap;
+}
+.weekly-nav-btn {
+  background: #fff; border: 2px solid var(--light-gray);
+  border-radius: 10px; padding: 6px 14px;
+  font-family: 'Fredoka One', cursive; font-size: .9rem;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.weekly-nav-btn:hover { border-color: var(--accent); background: var(--accent-light); }
+.weekly-nav-btn:disabled { opacity: .35; cursor: default; }
+.week-range-label {
+  font-family: 'Fredoka One', cursive; font-size: 1rem; color: var(--text);
+}
 .weekly-period-block {
   background: #fff; border-radius: 14px;
-  padding: 16px 20px; margin-bottom: 14px;
+  margin-bottom: 14px;
   box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  overflow: hidden;
 }
-.weekly-period-block h3 {
-  font-size: 1rem; color: var(--accent); margin-bottom: 4px;
+.weekly-period-header {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 18px; cursor: pointer;
+  transition: background .15s; user-select: none;
 }
-.weekly-meta { font-size: .8rem; color: #888; margin-bottom: 12px; }
+.weekly-period-header:hover { background: #f8f9fc; }
+.weekly-period-header .wp-label {
+  font-family: 'Fredoka One', cursive; font-size: 1rem; color: var(--accent);
+  flex-shrink: 0;
+}
+.weekly-period-header .wp-summary {
+  font-size: .82rem; color: #888; flex: 1;
+}
+.weekly-period-header .wp-chevron {
+  font-size: .9rem; color: #ccc; transition: transform .2s; margin-left: auto;
+}
+.weekly-period-block.open .wp-chevron { transform: rotate(180deg); }
+.weekly-period-body {
+  max-height: 0; overflow: hidden;
+  transition: max-height .3s ease;
+  padding: 0 18px;
+}
+.weekly-period-block.open .weekly-period-body { max-height: 3000px; padding-bottom: 16px; }
+.weekly-meta { font-size: .8rem; color: #888; margin-bottom: 10px; }
 .weekly-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
 .weekly-table th {
   text-align: left; padding: 6px 8px;
@@ -895,9 +931,6 @@ tr.att-row.missing td { background: #fce4ec; }
 .score-pill.green  { background: #e8f5e9; color: #2e7d32; }
 .score-pill.yellow { background: #fffde7; color: #f57f17; }
 .score-pill.red    { background: #fce4ec; color: #c62828; }
-.week-label {
-  font-size: .82rem; color: #888; margin-bottom: 12px;
-}
 
 /* ── EXCLUDE DAY ── */
 .exclude-btn {
@@ -2299,12 +2332,14 @@ function closeStudentModal() {
 // ═══════════════════════════════════════════
 // WEEKLY POINTS
 // ═══════════════════════════════════════════
-function getWeekDates() {
-  // Returns Mon–Fri date strings for the current school week
+let weeklyOffset = 0; // 0 = current week, -1 = last week, etc.
+
+function getWeekDates(offsetWeeks) {
+  // Returns Mon–Fri date strings for the week at offsetWeeks from current
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-  const day = now.getDay(); // 0=Sun,1=Mon...6=Sat
+  const day = now.getDay();
   const monday = new Date(now);
-  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1) + offsetWeeks * 7);
   return [0,1,2,3,4].map(offset => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + offset);
@@ -2312,16 +2347,21 @@ function getWeekDates() {
   });
 }
 
+function toggleWeeklyPeriod(el) {
+  el.closest('.weekly-period-block').classList.toggle('open');
+}
+
 async function loadWeekly() {
   if (!teacher) return;
   const container = document.getElementById('weekly-content');
   container.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px;">Loading…</p>';
 
-  const weekDates = getWeekDates();
+  const weekDates = getWeekDates(weeklyOffset);
   const code = teacher.code;
+  const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const fmtYear = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   try {
-    // Fetch all daily_words and results for this week
     const dateFilter = weekDates.map(d => `play_date.eq.${d}`).join(',');
     const [wRes, rRes] = await Promise.all([
       sb(`daily_words?class_code=eq.${encodeURIComponent(code)}&select=play_date,word&order=play_date.asc&or=(${dateFilter})`),
@@ -2330,11 +2370,9 @@ async function loadWeekly() {
     const wordDays = wRes.status < 400 ? await wRes.json() : [];
     const allResults = rRes.status < 400 ? await rRes.json() : [];
 
-    // Map: date → word (to know which days had a word)
     const wordByDate = {};
     wordDays.forEach(w => { wordByDate[w.play_date] = w.word; });
 
-    // Map: "period|date" → results array
     const resultsByPeriodDate = {};
     allResults.forEach(r => {
       const key = `${r.period}|${r.play_date}`;
@@ -2342,39 +2380,39 @@ async function loadWeekly() {
       resultsByPeriodDate[key].push(r);
     });
 
-    const dayLabels = weekDates.map(d => {
-      const dt = new Date(d + 'T12:00:00');
-      return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    });
-
-    const mon = new Date(weekDates[0] + 'T12:00:00');
-    const fri = new Date(weekDates[4] + 'T12:00:00');
-    const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    let html = `<div class="week-label">Week of ${fmt(mon)} – ${fmt(fri)}</div>`;
+    // Week nav header
+    const weekLabel = `${fmt(weekDates[0])} – ${fmtYear(weekDates[4])}`;
+    let html = `
+      <div class="weekly-nav">
+        <button class="weekly-nav-btn" onclick="weeklyOffset--; loadWeekly()">&#8592; Prev Week</button>
+        <span class="week-range-label">${weekLabel}</span>
+        <button class="weekly-nav-btn" onclick="weeklyOffset++; loadWeekly()"${weeklyOffset >= 0 ? ' disabled' : ''}>Next Week &#8594;</button>
+      </div>`;
 
     const periods = [1,2,3,4,5].filter(p => (classRoster[p] || []).length > 0);
-    if (!periods.length) { container.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px;">No roster set up yet.</p>'; return; }
+    if (!periods.length) {
+      container.innerHTML = html + '<p style="color:#aaa;text-align:center;padding:30px;">No roster set up yet.</p>';
+      return;
+    }
 
     periods.forEach(p => {
       const roster = classRoster[p] || [];
 
-      // Active days for this period: word set + at least one submission + not excluded
       const activeDates = weekDates.filter(d => {
         if (!wordByDate[d]) return false;
         if (excludedDays.has(`${p}|${d}`)) return false;
-        const key = `${p}|${d}`;
-        return (resultsByPeriodDate[key] || []).length > 0;
+        return (resultsByPeriodDate[`${p}|${d}`] || []).length > 0;
       });
 
       const maxPts = activeDates.length * 2;
 
-      // Column headers
       const dayHeaders = activeDates.map(d => {
         const dt = new Date(d + 'T12:00:00');
         return `<th>${dt.toLocaleDateString('en-US', { weekday: 'short' })}<br><small>${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</small></th>`;
       }).join('');
 
-      // Per-student rows
+      // Compute per-student scores for summary and table
+      let allComplete = 0;
       const studentRows = roster.map(name => {
         let pts = 0;
         const cells = activeDates.map(d => {
@@ -2383,8 +2421,8 @@ async function loadWeekly() {
           if (match) { pts += 2; return `<td style="text-align:center;color:var(--green);">&#10003;</td>`; }
           return `<td style="text-align:center;color:#ddd;">&#8212;</td>`;
         }).join('');
-
-        const missed = activeDates.length - (pts / 2);
+        const missed = activeDates.length - pts / 2;
+        if (missed === 0) allComplete++;
         const pillClass = missed === 0 ? 'green' : missed === 1 ? 'yellow' : 'red';
         return `<tr>
           <td><strong>${name}</strong></td>
@@ -2393,16 +2431,27 @@ async function loadWeekly() {
         </tr>`;
       }).join('');
 
+      // Collapsed summary line
+      const summaryText = activeDates.length === 0
+        ? 'No active days this week yet'
+        : `${allComplete}/${roster.length} completed all days &middot; ${activeDates.length} active day${activeDates.length !== 1 ? 's' : ''} &middot; max ${maxPts} pts`;
+
       html += `<div class="weekly-period-block">
-        <h3>Period ${p}</h3>
-        <div class="weekly-meta">${activeDates.length} active day${activeDates.length !== 1 ? 's' : ''} this week &middot; max ${maxPts} pts</div>
-        ${activeDates.length === 0
-          ? '<p style="color:#aaa;font-size:.88rem;">No active days this week yet.</p>'
-          : `<table class="weekly-table">
-              <thead><tr><th>Student</th>${dayHeaders}<th>Score</th></tr></thead>
-              <tbody>${studentRows}</tbody>
-            </table>`
-        }
+        <div class="weekly-period-header" onclick="toggleWeeklyPeriod(this)">
+          <span class="wp-label">Period ${p}</span>
+          <span class="wp-summary">${summaryText}</span>
+          <span class="wp-chevron">&#9660;</span>
+        </div>
+        <div class="weekly-period-body">
+          <div class="weekly-meta">${activeDates.length} active day${activeDates.length !== 1 ? 's' : ''} this week &middot; max ${maxPts} pts</div>
+          ${activeDates.length === 0
+            ? '<p style="color:#aaa;font-size:.88rem;padding-bottom:8px;">No active days this week yet.</p>'
+            : `<table class="weekly-table">
+                <thead><tr><th>Student</th>${dayHeaders}<th>Score</th></tr></thead>
+                <tbody>${studentRows}</tbody>
+              </table>`
+          }
+        </div>
       </div>`;
     });
 
