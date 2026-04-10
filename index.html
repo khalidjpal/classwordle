@@ -2054,7 +2054,8 @@ function buildPeriodSections(results, word, dateStr) {
   let html = '';
 
   html += periods.map(p => {
-    const pResults = results.filter(r => r.period === p);
+    // Use Number() to guard against Supabase returning period as a string
+    const pResults = results.filter(r => Number(r.period) === p);
     const roster = classRoster[p] || [];
     if (!pResults.length && !roster.length) return '';
 
@@ -2125,9 +2126,22 @@ function buildPeriodSections(results, word, dateStr) {
     const rosterTotal = hasRoster && roster.length ? roster.length : pResults.length;
 
     const isExcluded = dateStr && excludedDays.has(`${p}|${dateStr}`);
-    // Void: < 5% of rostered students submitted (only meaningful when roster exists)
-    const isVoid = dateStr && !isExcluded && roster.length > 0
-      && (pResults.length / roster.length) < 0.05;
+
+    // ── Void day check ──────────────────────────────────────────────
+    const rosterCount = roster.length;
+    const submissionCount = pResults.length;
+    const participationPct = rosterCount > 0 ? (submissionCount / rosterCount * 100) : null;
+    const isVoid = dateStr && !isExcluded && rosterCount > 0 && participationPct < 5;
+
+    if (dateStr) {
+      console.log(
+        `[VOID] History | Period ${p} | Date ${dateStr}` +
+        ` | Rostered: ${rosterCount}` +
+        ` | Submitted: ${submissionCount}` +
+        ` | Participation: ${participationPct !== null ? participationPct.toFixed(1) + '%' : 'N/A (no roster)'}` +
+        ` | VOID: ${isVoid}`
+      );
+    }
 
     let periodLabelClass = '';
     let periodTag = '';
@@ -2316,8 +2330,9 @@ async function openStudentModal(studentName, period) {
     if (!days.length) { body.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">No game days found.</p>'; return; }
 
     const rosterSize = (classRoster[period] || []).length;
+    console.log(`[VOID] Profile | Student: ${studentName} | Period: ${period} | Roster size: ${rosterSize}`);
 
-    // Count total submissions per date (for void check)
+    // Count total submissions per date for this period (already filtered by period=eq.${period})
     const submissionsPerDate = {};
     allResults.forEach(r => { submissionsPerDate[r.play_date] = (submissionsPerDate[r.play_date] || 0) + 1; });
 
@@ -2340,6 +2355,16 @@ async function openStudentModal(studentName, period) {
         const pct = (submissionsPerDate[date] || 0) / rosterSize;
         if (pct < 0.05) return '';
       }
+
+      const subCount = submissionsPerDate[date] || 0;
+      const pct = rosterSize > 0 ? (subCount / rosterSize * 100) : null;
+      console.log(
+        `  [VOID] Profile | ${date}` +
+        ` | Submitted: ${subCount}` +
+        ` | Rostered: ${rosterSize}` +
+        ` | Participation: ${pct !== null ? pct.toFixed(1) + '%' : 'N/A'}` +
+        ` | Skipped (void/excluded): ${excludedDays.has(`${period}|${date}`) || (rosterSize > 0 && pct < 5)}`
+      );
 
       const d = new Date(date + 'T12:00:00');
       const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -2413,7 +2438,7 @@ async function loadWeekly() {
 
     const resultsByPeriodDate = {};
     allResults.forEach(r => {
-      const key = `${r.period}|${r.play_date}`;
+      const key = `${Number(r.period)}|${r.play_date}`;  // Number() guards against string period
       if (!resultsByPeriodDate[key]) resultsByPeriodDate[key] = [];
       resultsByPeriodDate[key].push(r);
     });
@@ -2436,13 +2461,26 @@ async function loadWeekly() {
     periods.forEach(p => {
       const roster = classRoster[p] || [];
 
+      console.log(`[VOID] Weekly | Period ${p} | Roster size: ${roster.length}`);
       const activeDates = weekDates.filter(d => {
         if (!wordByDate[d]) return false;
         if (excludedDays.has(`${p}|${d}`)) return false;
+        // Use Number() on period key since resultsByPeriodDate was built from Supabase r.period
         const dayCount = (resultsByPeriodDate[`${p}|${d}`] || []).length;
-        if (dayCount === 0) return false;
-        // Void: < 5% of rostered students submitted
-        if (roster.length > 0 && dayCount / roster.length < 0.05) return false;
+        if (dayCount === 0) {
+          console.log(`  [VOID] ${d} → skipped (0 submissions)`);
+          return false;
+        }
+        const pct = roster.length > 0 ? (dayCount / roster.length * 100) : null;
+        const voidDay = roster.length > 0 && pct < 5;
+        console.log(
+          `  [VOID] ${d}` +
+          ` | Submitted: ${dayCount}` +
+          ` | Rostered: ${roster.length}` +
+          ` | Participation: ${pct !== null ? pct.toFixed(1) + '%' : 'N/A'}` +
+          ` | VOID: ${voidDay}`
+        );
+        if (voidDay) return false;
         return true;
       });
 
