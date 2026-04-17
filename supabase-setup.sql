@@ -36,6 +36,17 @@ CREATE TABLE IF NOT EXISTS results (
   UNIQUE (class_code, first_name, last_name, period, play_date)
 );
 
+-- 4. Name links table (manual roster mappings)
+CREATE TABLE IF NOT EXISTS name_links (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  class_code TEXT NOT NULL,
+  submitted_name TEXT NOT NULL,
+  roster_name TEXT NOT NULL,
+  period INT NOT NULL CHECK (period BETWEEN 1 AND 5),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (class_code, submitted_name)
+);
+
 -- =============================================
 -- Indexes
 -- =============================================
@@ -43,6 +54,7 @@ CREATE TABLE IF NOT EXISTS results (
 CREATE INDEX IF NOT EXISTS idx_daily_words_lookup ON daily_words(class_code, play_date);
 CREATE INDEX IF NOT EXISTS idx_results_lookup ON results(class_code, play_date);
 CREATE INDEX IF NOT EXISTS idx_results_period ON results(class_code, play_date, period);
+CREATE INDEX IF NOT EXISTS idx_name_links_lookup ON name_links(class_code, submitted_name);
 
 -- =============================================
 -- Row Level Security (RLS)
@@ -51,6 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_results_period ON results(class_code, play_date, 
 ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_words ENABLE ROW LEVEL SECURITY;
 ALTER TABLE results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE name_links ENABLE ROW LEVEL SECURITY;
 
 -- Allow anonymous read/insert for all tables (using anon key)
 CREATE POLICY "Allow public read on classes"
@@ -76,3 +89,19 @@ CREATE POLICY "Allow public read on results"
 CREATE POLICY "Allow public insert on results"
   ON results FOR INSERT
   WITH CHECK (true);
+
+CREATE POLICY "Allow public read on name_links"
+  ON name_links FOR SELECT
+  USING (true);
+
+CREATE POLICY "Allow public insert on name_links"
+  ON name_links FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Allow public update on name_links"
+  ON name_links FOR UPDATE
+  USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public delete on name_links"
+  ON name_links FOR DELETE
+  USING (true);

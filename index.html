@@ -766,6 +766,125 @@ tr:hover td { background: #fafbff; }
 tr.att-row.completed td { background: #f1f8e9; }
 tr.att-row.missing td { background: #fce4ec; }
 
+/* ── NAME LINK / INFO MODALS ── */
+.name-link {
+  cursor: pointer;
+  border-bottom: 1px dashed #888;
+  transition: color .15s, border-color .15s;
+}
+.name-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+.link-btn {
+  padding: 5px 12px;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--accent);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: .8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.link-btn:hover { background: var(--accent); color: #fff; }
+
+.info-confidence {
+  padding: 8px 12px;
+  background: var(--accent-light);
+  color: var(--accent);
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: .85rem;
+  margin-bottom: 10px;
+  display: inline-block;
+}
+.info-signedin {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+.info-signedin-label {
+  font-size: .85rem; color: #666; margin-bottom: 4px; font-weight: 700;
+}
+.info-roster {
+  font-size: .9rem; color: #666; margin-bottom: 14px;
+}
+.info-roster strong { color: var(--text); }
+
+.reassign-btn {
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: .9rem;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.reassign-btn:hover { background: #3451d1; }
+
+.link-modal-sub {
+  font-size: .9rem; color: #666; margin-bottom: 10px;
+}
+.link-modal-sub strong { color: var(--text); }
+.link-modal-search {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--light-gray);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-family: 'Nunito', sans-serif;
+  margin-bottom: 10px;
+}
+.link-modal-search:focus { outline: none; border-color: var(--accent); }
+.link-modal-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  border: 1px solid var(--light-gray);
+  border-radius: 10px;
+  padding: 4px;
+  min-height: 200px;
+  max-height: 340px;
+}
+.link-modal-group-label {
+  font-family: 'Fredoka One', cursive;
+  font-size: .8rem;
+  color: var(--accent);
+  padding: 10px 10px 4px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.link-modal-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: .95rem;
+  font-weight: 600;
+  transition: background .1s, color .1s;
+}
+.link-modal-item:hover { background: var(--accent-light); color: var(--accent); }
+
+.modal-footer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid #f0f0f0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.modal-cancel {
+  padding: 10px;
+  border: 2px solid var(--light-gray);
+  border-radius: 10px;
+  background: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: .9rem;
+  cursor: pointer;
+  color: #888;
+}
+.modal-cancel:hover { border-color: var(--accent); color: var(--accent); }
+
 /* ── CONFETTI ── */
 .confetti-piece {
   position: fixed;
@@ -1169,6 +1288,41 @@ tr.att-row.missing td { background: #fce4ec; }
   </div>
 </div>
 
+<!-- ─── SUBMISSION INFO MODAL ─── -->
+<div id="info-modal" class="modal-overlay">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Submission Info</h3>
+      <button class="modal-close-btn" data-action="close-info">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-roster">Roster: <strong id="info-modal-roster"></strong></div>
+      <div class="info-signedin-label">Signed in as:</div>
+      <div class="info-signedin" id="info-modal-submitted"></div>
+      <div id="info-modal-confidence" class="info-confidence"></div>
+      <button class="reassign-btn" data-action="reassign">Reassign to different student</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── LINK TO ROSTER MODAL ─── -->
+<div id="link-modal" class="modal-overlay">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Link to Roster Student</h3>
+      <button class="modal-close-btn" data-action="close-link">&#x2715;</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;">
+      <div class="link-modal-sub">Linking submission <strong id="link-modal-submitted"></strong></div>
+      <input class="link-modal-search" id="link-modal-search" type="text" placeholder="Search students..." autocomplete="off">
+      <div class="link-modal-list" id="link-modal-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-cancel" data-action="close-link">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-container" id="toast-container"></div>
 
 <script>
@@ -1197,6 +1351,7 @@ let classRoster = {}; // { 1: ['name1','name2'], 2: [...], ... }
 let classRosterOrder = { 1: false, 2: false, 3: false, 4: false, 5: false }; // false = alpha sort, true = custom order_index
 let editOrderState = {}; // { period: [names currently being reordered in edit mode] }
 let excludedDays = new Set(); // Set of "period|date" strings e.g. "1|2026-04-09"
+let classNameLinks = []; // [{ submitted_name, roster_name, period }]
 
 // ═══════════════════════════════════════════
 // SUPABASE HELPERS
@@ -1380,9 +1535,88 @@ async function teacherLogin() {
   console.log('[TEACHER] Logged in, teacher object:', teacher);
   showScreen('teacher-dashboard');
   document.getElementById('dash-meta').textContent = `${name} \u2022 ${code} \u2022 ${todayStr()}`;
-  await Promise.all([loadRoster(), loadExcludedDays()]);
+  await Promise.all([loadRoster(), loadExcludedDays(), loadNameLinks()]);
   loadDashboard();
   dashboardInterval = setInterval(loadDashboard, 5000);
+}
+
+// ═══════════════════════════════════════════
+// NAME LINKS (manual roster mappings)
+// ═══════════════════════════════════════════
+async function loadNameLinks() {
+  if (!teacher) return;
+  classNameLinks = [];
+  try {
+    const res = await sb(`name_links?class_code=eq.${encodeURIComponent(teacher.code)}&select=submitted_name,roster_name,period`);
+    if (res.status >= 400) {
+      const err = await res.json();
+      console.error('[LINKS] Load failed (table may not exist):', err);
+      return;
+    }
+    classNameLinks = await res.json();
+    console.log('[LINKS] Loaded', classNameLinks.length, 'manual links');
+  } catch (e) {
+    console.error('[LINKS] Load error:', e);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Manual-link aware match check. Returns true if result r belongs to (rosterName, period).
+// If a manual link exists for this submitted name, it wins (exclusive).
+// Otherwise fall back to fuzzy match.
+function resultMatchesRoster(r, rosterName, period) {
+  const submittedLower = (r.student_name || '').trim().toLowerCase();
+  const link = classNameLinks.find(l => (l.submitted_name || '').trim().toLowerCase() === submittedLower);
+  if (link) return link.roster_name === rosterName && Number(link.period) === Number(period);
+  return nameSimilarity(r.student_name, rosterName) >= 0.75;
+}
+
+// Unified matcher: manual links first, then fuzzy within period.
+// Returns { byPeriod: {p: [{rosterName, result, method, score}]}, unrecognized: [result] }
+function computeMatches(results) {
+  const byPeriod = {1: [], 2: [], 3: [], 4: [], 5: []};
+  const matchedIds = new Set();
+  const claimedRoster = {1: new Set(), 2: new Set(), 3: new Set(), 4: new Set(), 5: new Set()};
+  const rid = r => String(r.id != null ? r.id : r.student_name);
+
+  // Pass 1: manual links (exact submitted_name, case insensitive)
+  results.forEach(r => {
+    const submittedLower = (r.student_name || '').trim().toLowerCase();
+    const link = classNameLinks.find(l => (l.submitted_name || '').trim().toLowerCase() === submittedLower);
+    if (!link) return;
+    const p = Number(link.period);
+    if (!byPeriod[p]) return;
+    if (claimedRoster[p].has(link.roster_name)) return;
+    byPeriod[p].push({ rosterName: link.roster_name, result: r, method: 'manual', score: null });
+    matchedIds.add(rid(r));
+    claimedRoster[p].add(link.roster_name);
+  });
+
+  // Pass 2: fuzzy match within each period (only unclaimed results and unclaimed roster)
+  [1,2,3,4,5].forEach(p => {
+    const roster = classRoster[p] || [];
+    const pResults = results.filter(r => Number(r.period) === p && !matchedIds.has(rid(r)));
+    roster.forEach(rosterName => {
+      if (claimedRoster[p].has(rosterName)) return;
+      let best = null, bestScore = 0;
+      pResults.forEach(r => {
+        if (matchedIds.has(rid(r))) return;
+        const score = nameSimilarity(r.student_name, rosterName);
+        if (score >= 0.75 && score > bestScore) { bestScore = score; best = r; }
+      });
+      if (best) {
+        byPeriod[p].push({ rosterName, result: best, method: 'fuzzy', score: bestScore });
+        matchedIds.add(rid(best));
+        claimedRoster[p].add(rosterName);
+      }
+    });
+  });
+
+  const unrecognized = results.filter(r => !matchedIds.has(rid(r)));
+  return { byPeriod, unrecognized };
 }
 
 // ═══════════════════════════════════════════
@@ -1766,48 +2000,36 @@ function renderDashboard(results) {
   }
 
   // With roster: show attendance cards by period in roster order
+  const { byPeriod, unrecognized } = computeMatches(filtered);
   const periods = activePeriodFilter === 'all' ? [1,2,3,4,5] : [parseInt(activePeriodFilter)];
   let html = '';
-  const allMatchedIds = new Set();
 
   periods.forEach(p => {
     const roster = classRoster[p] || [];
-    if (!roster.length && !results.filter(r => r.period === p).length) return;
-    const pResults = results.filter(r => r.period === p);
+    const periodMatches = byPeriod[p] || [];
+    if (!roster.length && !periodMatches.length) return;
 
     html += `<tr><td colspan="5" style="padding:12px 8px 6px;"><strong style="font-family:'Fredoka One',cursive;color:var(--accent);">Period ${p}</strong></td></tr>`;
 
-    // Track which results have been claimed by roster matches (first match wins)
-    const claimedResultIds = new Set();
+    const matchByRoster = {};
+    periodMatches.forEach(m => { matchByRoster[m.rosterName] = m; });
 
-    // Roster students in original roster order
     roster.forEach(rosterName => {
-      // Find best fuzzy match among unclaimed results
-      let bestResult = null, bestScore = 0;
-      pResults.forEach(r => {
-        const rid = r.id || r.student_name.toLowerCase();
-        if (claimedResultIds.has(rid)) return;
-        const score = nameSimilarity(r.student_name, rosterName);
-        if (score >= 0.75 && score > bestScore) {
-          bestScore = score;
-          bestResult = r;
-        }
-      });
-
-      if (bestResult) {
-        const rid = bestResult.id || bestResult.student_name.toLowerCase();
-        claimedResultIds.add(rid);
-        allMatchedIds.add(rid);
+      const match = matchByRoster[rosterName];
+      if (match) {
+        const r = match.result;
+        const rid = String(r.id != null ? r.id : r.student_name);
+        window._matchData[rid] = { submitted: r.student_name, rosterName, method: match.method, score: match.score, period: p };
         html += `<tr class="att-row completed">
-          <td><strong>${rosterName}</strong></td>
+          <td><strong><span class="name-link" data-action="info" data-rid="${escapeHtml(rid)}">${escapeHtml(rosterName)}</span></strong></td>
           <td>P${p}</td>
-          <td>${bestResult.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
-          <td>${bestResult.won ? bestResult.guess_count + '/6' : 'X/6'}</td>
-          <td><div class="dot-progress">${buildDots(bestResult, todayWord)}</div></td>
+          <td>${r.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
+          <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
+          <td><div class="dot-progress">${buildDots(r, todayWord)}</div></td>
         </tr>`;
       } else {
         html += `<tr class="att-row missing">
-          <td><strong>${rosterName}</strong></td>
+          <td><strong>${escapeHtml(rosterName)}</strong></td>
           <td>P${p}</td>
           <td><span style="color:#c62828;font-weight:700;font-size:.85rem;">Not submitted</span></td>
           <td>-</td>
@@ -1815,18 +2037,35 @@ function renderDashboard(results) {
         </tr>`;
       }
     });
-  });
 
-  // Unrecognized results (not matched to any roster student)
-  const unrecognized = filtered.filter(r => {
-    const rid = r.id || r.student_name.toLowerCase();
-    return !allMatchedIds.has(rid);
+    // Stale manual links pointing to a roster name no longer on roster — still show
+    periodMatches.forEach(m => {
+      if (roster.includes(m.rosterName)) return;
+      const r = m.result;
+      const rid = String(r.id != null ? r.id : r.student_name);
+      window._matchData[rid] = { submitted: r.student_name, rosterName: m.rosterName, method: m.method, score: m.score, period: p };
+      html += `<tr class="att-row completed">
+        <td><strong><span class="name-link" data-action="info" data-rid="${escapeHtml(rid)}">${escapeHtml(m.rosterName)}</span></strong></td>
+        <td>P${p}</td>
+        <td>${r.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
+        <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
+        <td><div class="dot-progress">${buildDots(r, todayWord)}</div></td>
+      </tr>`;
+    });
   });
 
   if (unrecognized.length) {
     html += `<tr><td colspan="5" style="padding:16px 8px 6px;"><strong style="color:#f57f17;">Unrecognized Students</strong></td></tr>`;
     unrecognized.forEach(r => {
-      html += buildResultRow(r, todayWord);
+      const rid = String(r.id != null ? r.id : r.student_name);
+      window._matchData[rid] = { submitted: r.student_name, rosterName: null, method: null, score: null, period: r.period };
+      html += `<tr>
+        <td><strong>${escapeHtml(r.student_name)}</strong></td>
+        <td>P${r.period}</td>
+        <td>${r.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
+        <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
+        <td><button class="link-btn" data-action="link" data-rid="${escapeHtml(rid)}">Link to Roster</button></td>
+      </tr>`;
     });
   }
 
@@ -2059,8 +2298,18 @@ function togglePeriodSection(el) {
 function buildPeriodSections(results, word, dateStr) {
   const periods = [1, 2, 3, 4, 5];
   const hasRoster = Object.values(classRoster).some(arr => arr.length > 0);
-  const allMatchedIds = new Set();
   let html = '';
+
+  const { byPeriod, unrecognized } = hasRoster
+    ? computeMatches(results)
+    : { byPeriod: {1:[],2:[],3:[],4:[],5:[]}, unrecognized: [] };
+
+  const dotsFor = r => {
+    try {
+      const gw = Array.isArray(r.guesses) ? r.guesses : JSON.parse(r.guesses);
+      return buildProgressDots(gw, word);
+    } catch (e) { return '-'; }
+  };
 
   html += periods.map(p => {
     // Use Number() to guard against Supabase returning period as a string
@@ -2074,62 +2323,57 @@ function buildPeriodSections(results, word, dateStr) {
 
     let rows = '';
     let submitted = 0;
-    const claimedResultIds = new Set();
 
     if (hasRoster && roster.length) {
-      // Show in roster order with fuzzy matching
-      roster.forEach(rosterName => {
-        let bestResult = null, bestScore = 0;
-        pResults.forEach(r => {
-          const rid = (r.id || r.student_name).toString().toLowerCase();
-          if (claimedResultIds.has(rid)) return;
-          const score = nameSimilarity(r.student_name, rosterName);
-          if (score >= 0.75 && score > bestScore) {
-            bestScore = score;
-            bestResult = r;
-          }
-        });
+      const periodMatches = byPeriod[p] || [];
+      const matchByRoster = {};
+      periodMatches.forEach(m => { matchByRoster[m.rosterName] = m; });
 
-        if (bestResult) {
-          const rid = (bestResult.id || bestResult.student_name).toString().toLowerCase();
-          claimedResultIds.add(rid);
-          allMatchedIds.add(rid);
+      roster.forEach(rosterName => {
+        const match = matchByRoster[rosterName];
+        if (match) {
+          const r = match.result;
+          const rid = String(r.id != null ? r.id : r.student_name);
+          window._matchData[rid] = { submitted: r.student_name, rosterName, method: match.method, score: match.score, period: p };
           submitted++;
-          let dots = '';
-          try {
-            const gw = Array.isArray(bestResult.guesses) ? bestResult.guesses : JSON.parse(bestResult.guesses);
-            dots = buildProgressDots(gw, word);
-          } catch (e) { dots = '-'; }
           rows += `<tr class="att-row completed">
-            <td><strong>${rosterName}</strong></td>
-            <td>${bestResult.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
-            <td>${bestResult.won ? bestResult.guess_count + '/6' : 'X/6'}</td>
-            <td><div class="dot-progress">${dots}</div></td>
+            <td><strong><span class="name-link" data-action="info" data-rid="${escapeHtml(rid)}">${escapeHtml(rosterName)}</span></strong></td>
+            <td>${r.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
+            <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
+            <td><div class="dot-progress">${dotsFor(r)}</div></td>
           </tr>`;
         } else {
           rows += `<tr class="att-row missing">
-            <td><strong>${rosterName}</strong></td>
+            <td><strong>${escapeHtml(rosterName)}</strong></td>
             <td><span style="color:#c62828;font-weight:700;font-size:.85rem;">Not submitted</span></td>
             <td>-</td>
             <td>-</td>
           </tr>`;
         }
       });
-    } else {
-      submitted = pResults.length;
-      rows = pResults.map(r => {
-        let dots = '';
-        try {
-          const gw = Array.isArray(r.guesses) ? r.guesses : JSON.parse(r.guesses);
-          dots = buildProgressDots(gw, word);
-        } catch (e) { dots = '-'; }
-        return `<tr>
-          <td><strong>${r.student_name}</strong></td>
+
+      // Stale manual-link rosterNames not on current roster — show them too
+      periodMatches.forEach(m => {
+        if (roster.includes(m.rosterName)) return;
+        const r = m.result;
+        const rid = String(r.id != null ? r.id : r.student_name);
+        window._matchData[rid] = { submitted: r.student_name, rosterName: m.rosterName, method: m.method, score: m.score, period: p };
+        submitted++;
+        rows += `<tr class="att-row completed">
+          <td><strong><span class="name-link" data-action="info" data-rid="${escapeHtml(rid)}">${escapeHtml(m.rosterName)}</span></strong></td>
           <td>${r.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
           <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
-          <td><div class="dot-progress">${dots}</div></td>
+          <td><div class="dot-progress">${dotsFor(r)}</div></td>
         </tr>`;
-      }).join('');
+      });
+    } else {
+      submitted = pResults.length;
+      rows = pResults.map(r => `<tr>
+        <td><strong>${escapeHtml(r.student_name)}</strong></td>
+        <td>${r.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
+        <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
+        <td><div class="dot-progress">${dotsFor(r)}</div></td>
+      </tr>`).join('');
     }
 
     const rosterTotal = hasRoster && roster.length ? roster.length : pResults.length;
@@ -2185,25 +2429,27 @@ function buildPeriodSections(results, word, dateStr) {
   }).join('');
 
   // Unrecognized results
-  if (hasRoster) {
-    const unrecognized = results.filter(r => {
-      const rid = (r.id || r.student_name).toString().toLowerCase();
-      return !allMatchedIds.has(rid);
+  if (hasRoster && unrecognized.length) {
+    unrecognized.forEach(r => {
+      const rid = String(r.id != null ? r.id : r.student_name);
+      window._matchData[rid] = { submitted: r.student_name, rosterName: null, method: null, score: null, period: r.period };
     });
-    if (unrecognized.length) {
-      html += `<div class="unrecognized-section">
-        <h4>Unrecognized Students</h4>
-        <table>
-          <thead><tr><th>Name</th><th>Period</th><th>Status</th><th>Guesses</th></tr></thead>
-          <tbody>${unrecognized.map(r => `<tr>
-            <td><strong>${r.student_name}</strong></td>
+    html += `<div class="unrecognized-section">
+      <h4>Unrecognized Students</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Period</th><th>Status</th><th>Guesses</th><th></th></tr></thead>
+        <tbody>${unrecognized.map(r => {
+          const rid = String(r.id != null ? r.id : r.student_name);
+          return `<tr>
+            <td><strong>${escapeHtml(r.student_name)}</strong></td>
             <td>P${r.period}</td>
             <td>${r.won ? '<span class="status-badge solved">Solved</span>' : '<span class="status-badge failed">Failed</span>'}</td>
             <td>${r.won ? r.guess_count + '/6' : 'X/6'}</td>
-          </tr>`).join('')}</tbody>
-        </table>
-      </div>`;
-    }
+            <td><button class="link-btn" data-action="link" data-rid="${escapeHtml(rid)}">Link to Roster</button></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
   }
 
   return html;
@@ -2331,28 +2577,42 @@ async function openStudentModal(studentName, period) {
     // Fetch all days where a word was set, and all results for this class
     const [wRes, rRes] = await Promise.all([
       sb(`daily_words?class_code=eq.${encodeURIComponent(teacher.code)}&select=play_date,word&order=play_date.desc`),
-      sb(`results?class_code=eq.${encodeURIComponent(teacher.code)}&period=eq.${period}&select=student_name,play_date,won,guess_count&order=play_date.desc`)
+      sb(`results?class_code=eq.${encodeURIComponent(teacher.code)}&select=student_name,period,play_date,won,guess_count&order=play_date.desc`)
     ]);
     const days = wRes.status < 400 ? await wRes.json() : [];
-    const allResults = rRes.status < 400 ? await rRes.json() : [];
+    const rawResults = rRes.status < 400 ? await rRes.json() : [];
+    // Keep results relevant to this period: either period matches OR a manual link routes them here.
+    const allResults = rawResults.filter(r => {
+      if (Number(r.period) === Number(period)) return true;
+      const submittedLower = (r.student_name || '').trim().toLowerCase();
+      const link = classNameLinks.find(l => (l.submitted_name || '').trim().toLowerCase() === submittedLower);
+      return !!(link && Number(link.period) === Number(period));
+    });
 
     if (!days.length) { body.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">No game days found.</p>'; return; }
 
     const rosterSize = (classRoster[period] || []).length;
     console.log(`[VOID] Profile | Student: ${studentName} | Period: ${period} | Roster size: ${rosterSize}`);
 
-    // Count total submissions per date for this period (already filtered by period=eq.${period})
+    // Count total submissions per date for this period
     const submissionsPerDate = {};
     allResults.forEach(r => { submissionsPerDate[r.play_date] = (submissionsPerDate[r.play_date] || 0) + 1; });
 
-    // Build a map: date → best matching result for this student
+    // Build a map: date → best matching result for this student (manual link wins)
     const resultByDate = {};
     allResults.forEach(r => {
-      const score = nameSimilarity(r.student_name, studentName);
-      if (score >= 0.75) {
-        if (!resultByDate[r.play_date] || score > resultByDate[r.play_date].score) {
-          resultByDate[r.play_date] = { ...r, score };
-        }
+      const submittedLower = (r.student_name || '').trim().toLowerCase();
+      const link = classNameLinks.find(l => (l.submitted_name || '').trim().toLowerCase() === submittedLower);
+      let score;
+      if (link) {
+        if (link.roster_name !== studentName || Number(link.period) !== Number(period)) return;
+        score = 1; // manual link = exact match
+      } else {
+        score = nameSimilarity(r.student_name, studentName);
+        if (score < 0.75) return;
+      }
+      if (!resultByDate[r.play_date] || score > resultByDate[r.play_date].score) {
+        resultByDate[r.play_date] = { ...r, score };
       }
     });
 
@@ -2506,7 +2766,7 @@ async function loadWeekly() {
         let pts = 0;
         const cells = activeDates.map(d => {
           const dayResults = resultsByPeriodDate[`${p}|${d}`] || [];
-          const match = dayResults.find(r => nameSimilarity(r.student_name, name) >= 0.75);
+          const match = dayResults.find(r => resultMatchesRoster(r, name, p));
           if (match) { pts += 2; return `<td class="col-day" style="color:var(--green);">&#10003;</td>`; }
           return `<td class="col-day" style="color:#ddd;">&#8212;</td>`;
         }).join('');
@@ -2813,6 +3073,143 @@ async function saveRosterPeriod(period) {
     statusEl.textContent = 'Network error — check connection and try again.';
   }
 }
+
+// ═══════════════════════════════════════════
+// LINK / INFO MODALS
+// ═══════════════════════════════════════════
+// _matchData[rid] = { submitted, rosterName, method, score, period }
+window._matchData = {};
+
+function openInfoModal(rid) {
+  const data = window._matchData[rid];
+  if (!data) return;
+  document.getElementById('info-modal-roster').textContent = data.rosterName || '—';
+  document.getElementById('info-modal-submitted').textContent = data.submitted;
+  const confEl = document.getElementById('info-modal-confidence');
+  if (data.method === 'fuzzy' && data.score != null) {
+    confEl.textContent = 'Fuzzy match · ' + (data.score * 100).toFixed(0) + '% confidence';
+    confEl.style.display = '';
+  } else if (data.method === 'manual') {
+    confEl.textContent = 'Manually linked';
+    confEl.style.display = '';
+  } else {
+    confEl.style.display = 'none';
+  }
+  const modal = document.getElementById('info-modal');
+  modal.dataset.rid = rid;
+  modal.classList.add('open');
+}
+
+function closeInfoModal() {
+  document.getElementById('info-modal').classList.remove('open');
+}
+
+function openLinkModal(rid) {
+  const data = window._matchData[rid];
+  if (!data) return;
+  const modal = document.getElementById('link-modal');
+  modal.dataset.rid = rid;
+  document.getElementById('link-modal-submitted').textContent = data.submitted;
+  const searchEl = document.getElementById('link-modal-search');
+  searchEl.value = '';
+  renderLinkModalList('');
+  modal.classList.add('open');
+  setTimeout(() => searchEl.focus(), 50);
+}
+
+function closeLinkModal() {
+  document.getElementById('link-modal').classList.remove('open');
+}
+
+function renderLinkModalList(query) {
+  const q = (query || '').trim().toLowerCase();
+  let html = '';
+  let any = false;
+  [1,2,3,4,5].forEach(p => {
+    const names = (classRoster[p] || []).filter(n => !q || n.toLowerCase().includes(q));
+    if (!names.length) return;
+    any = true;
+    html += `<div class="link-modal-group-label">Period ${p}</div>`;
+    names.forEach(n => {
+      html += `<div class="link-modal-item" data-action="select-link" data-name="${escapeHtml(n)}" data-period="${p}">${escapeHtml(n)}</div>`;
+    });
+  });
+  if (!any) {
+    html = '<div style="padding:20px;text-align:center;color:#aaa;">No matching students.</div>';
+  }
+  document.getElementById('link-modal-list').innerHTML = html;
+}
+
+async function selectLink(rosterName, period) {
+  const modal = document.getElementById('link-modal');
+  const rid = modal.dataset.rid;
+  const data = window._matchData[rid];
+  if (!data) return;
+  try {
+    // Delete any prior link for this submitted_name to overwrite
+    const delRes = await sb(`name_links?class_code=eq.${encodeURIComponent(teacher.code)}&submitted_name=eq.${encodeURIComponent(data.submitted)}`, {
+      method: 'DELETE'
+    });
+    if (delRes.status >= 400) {
+      const err = await delRes.json();
+      console.error('[LINKS] Delete failed:', err);
+      showToast('Error: ' + (err.message || 'Could not save link'));
+      return;
+    }
+    const res = await sb('name_links', {
+      method: 'POST',
+      body: JSON.stringify({
+        class_code: teacher.code,
+        submitted_name: data.submitted,
+        roster_name: rosterName,
+        period: period
+      })
+    });
+    if (res.status >= 400) {
+      const err = await res.json();
+      console.error('[LINKS] Insert failed:', err);
+      showToast('Error: ' + (err.message || 'Could not save link'));
+      return;
+    }
+    closeLinkModal();
+    showToast(`Linked to ${rosterName}`);
+    await loadNameLinks();
+    loadDashboard();
+    if (document.getElementById('panel-history').classList.contains('active') && typeof historyDate !== 'undefined' && historyDate) {
+      renderHistoryForDate(historyDate);
+    }
+  } catch (e) {
+    console.error('[LINKS] Save error:', e);
+    showToast('Error saving link');
+  }
+}
+
+// Event delegation: handle data-action clicks across the dashboard + modals
+document.addEventListener('click', e => {
+  // Backdrop click (target IS the overlay, not anything inside it) closes the modal
+  if (e.target.id === 'info-modal') { closeInfoModal(); return; }
+  if (e.target.id === 'link-modal') { closeLinkModal(); return; }
+
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const action = el.dataset.action;
+  if (action === 'info') openInfoModal(el.dataset.rid);
+  else if (action === 'link') openLinkModal(el.dataset.rid);
+  else if (action === 'select-link') selectLink(el.dataset.name, parseInt(el.dataset.period));
+  else if (action === 'close-info') closeInfoModal();
+  else if (action === 'close-link') closeLinkModal();
+  else if (action === 'reassign') {
+    const rid = document.getElementById('info-modal').dataset.rid;
+    closeInfoModal();
+    openLinkModal(rid);
+  }
+});
+
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'link-modal-search') {
+    renderLinkModalList(e.target.value);
+  }
+});
 
 // ═══════════════════════════════════════════
 // TOAST
