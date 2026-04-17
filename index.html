@@ -867,6 +867,44 @@ tr.att-row.missing td { background: #fce4ec; }
   transition: background .1s, color .1s;
 }
 .link-modal-item:hover { background: var(--accent-light); color: var(--accent); }
+.link-modal-item.selected {
+  background: var(--accent);
+  color: #fff;
+}
+.link-modal-item.selected:hover { background: var(--accent); color: #fff; }
+
+.link-modal-selected {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f5f6fa;
+  color: #666;
+  font-size: .9rem;
+  font-weight: 600;
+}
+.link-modal-selected.active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.link-confirm-btn {
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.link-confirm-btn:hover:not(:disabled) { background: #3451d1; }
+.link-confirm-btn:disabled {
+  background: #cbd1e0;
+  color: #fff;
+  cursor: not-allowed;
+  opacity: .7;
+}
 
 .modal-footer {
   padding: 12px 20px 16px;
@@ -1290,7 +1328,7 @@ tr.att-row.missing td { background: #fce4ec; }
 
 <!-- ─── SUBMISSION INFO MODAL ─── -->
 <div id="info-modal" class="modal-overlay">
-  <div class="modal-card" onclick="event.stopPropagation()">
+  <div class="modal-card">
     <div class="modal-header">
       <h3>Submission Info</h3>
       <button class="modal-close-btn" data-action="close-info">&#x2715;</button>
@@ -1307,7 +1345,7 @@ tr.att-row.missing td { background: #fce4ec; }
 
 <!-- ─── LINK TO ROSTER MODAL ─── -->
 <div id="link-modal" class="modal-overlay">
-  <div class="modal-card" onclick="event.stopPropagation()">
+  <div class="modal-card">
     <div class="modal-header">
       <h3>Link to Roster Student</h3>
       <button class="modal-close-btn" data-action="close-link">&#x2715;</button>
@@ -1316,8 +1354,10 @@ tr.att-row.missing td { background: #fce4ec; }
       <div class="link-modal-sub">Linking submission <strong id="link-modal-submitted"></strong></div>
       <input class="link-modal-search" id="link-modal-search" type="text" placeholder="Search students..." autocomplete="off">
       <div class="link-modal-list" id="link-modal-list"></div>
+      <div id="link-modal-selected" class="link-modal-selected">No student selected — tap a name above.</div>
     </div>
     <div class="modal-footer">
+      <button id="link-modal-confirm" class="link-confirm-btn" data-action="confirm-link" disabled>Link Student</button>
       <button class="modal-cancel" data-action="close-link">Cancel</button>
     </div>
   </div>
@@ -3079,6 +3119,8 @@ async function saveRosterPeriod(period) {
 // ═══════════════════════════════════════════
 // _matchData[rid] = { submitted, rosterName, method, score, period }
 window._matchData = {};
+// Currently-selected roster student in the Link modal, committed by the Link button
+let _linkModalSelection = null; // { rosterName, period }
 
 function openInfoModal(rid) {
   const data = window._matchData[rid];
@@ -3106,12 +3148,14 @@ function closeInfoModal() {
 
 function openLinkModal(rid) {
   const data = window._matchData[rid];
-  if (!data) return;
+  if (!data) { console.warn('[LINKS] openLinkModal: no matchData for rid', rid); return; }
   const modal = document.getElementById('link-modal');
   modal.dataset.rid = rid;
   document.getElementById('link-modal-submitted').textContent = data.submitted;
   const searchEl = document.getElementById('link-modal-search');
   searchEl.value = '';
+  _linkModalSelection = null;
+  updateLinkModalSelectionUI();
   renderLinkModalList('');
   modal.classList.add('open');
   setTimeout(() => searchEl.focus(), 50);
@@ -3119,6 +3163,7 @@ function openLinkModal(rid) {
 
 function closeLinkModal() {
   document.getElementById('link-modal').classList.remove('open');
+  _linkModalSelection = null;
 }
 
 function renderLinkModalList(query) {
@@ -3131,7 +3176,8 @@ function renderLinkModalList(query) {
     any = true;
     html += `<div class="link-modal-group-label">Period ${p}</div>`;
     names.forEach(n => {
-      html += `<div class="link-modal-item" data-action="select-link" data-name="${escapeHtml(n)}" data-period="${p}">${escapeHtml(n)}</div>`;
+      const selected = _linkModalSelection && _linkModalSelection.rosterName === n && _linkModalSelection.period === p;
+      html += `<div class="link-modal-item${selected ? ' selected' : ''}" data-action="select-link" data-name="${escapeHtml(n)}" data-period="${p}">${escapeHtml(n)}</div>`;
     });
   });
   if (!any) {
@@ -3140,11 +3186,39 @@ function renderLinkModalList(query) {
   document.getElementById('link-modal-list').innerHTML = html;
 }
 
-async function selectLink(rosterName, period) {
+function pickLinkTarget(rosterName, period) {
+  _linkModalSelection = { rosterName, period: Number(period) };
+  // Re-render list to show highlight without losing current filter
+  const q = document.getElementById('link-modal-search').value;
+  renderLinkModalList(q);
+  updateLinkModalSelectionUI();
+}
+
+function updateLinkModalSelectionUI() {
+  const sel = _linkModalSelection;
+  const info = document.getElementById('link-modal-selected');
+  const btn = document.getElementById('link-modal-confirm');
+  if (sel) {
+    info.textContent = `Link to: ${sel.rosterName} (Period ${sel.period})`;
+    info.classList.add('active');
+    btn.disabled = false;
+  } else {
+    info.textContent = 'No student selected — tap a name above.';
+    info.classList.remove('active');
+    btn.disabled = true;
+  }
+}
+
+async function confirmLink() {
+  if (!_linkModalSelection) { showToast('Pick a student first'); return; }
   const modal = document.getElementById('link-modal');
   const rid = modal.dataset.rid;
   const data = window._matchData[rid];
-  if (!data) return;
+  if (!data) { console.warn('[LINKS] confirmLink: no matchData for rid', rid); return; }
+  const { rosterName, period } = _linkModalSelection;
+  const btn = document.getElementById('link-modal-confirm');
+  btn.disabled = true;
+  btn.textContent = 'Linking…';
   try {
     // Delete any prior link for this submitted_name to overwrite
     const delRes = await sb(`name_links?class_code=eq.${encodeURIComponent(teacher.code)}&submitted_name=eq.${encodeURIComponent(data.submitted)}`, {
@@ -3154,6 +3228,8 @@ async function selectLink(rosterName, period) {
       const err = await delRes.json();
       console.error('[LINKS] Delete failed:', err);
       showToast('Error: ' + (err.message || 'Could not save link'));
+      btn.disabled = false;
+      btn.textContent = 'Link Student';
       return;
     }
     const res = await sb('name_links', {
@@ -3169,8 +3245,11 @@ async function selectLink(rosterName, period) {
       const err = await res.json();
       console.error('[LINKS] Insert failed:', err);
       showToast('Error: ' + (err.message || 'Could not save link'));
+      btn.disabled = false;
+      btn.textContent = 'Link Student';
       return;
     }
+    btn.textContent = 'Link Student';
     closeLinkModal();
     showToast(`Linked to ${rosterName}`);
     await loadNameLinks();
@@ -3181,6 +3260,8 @@ async function selectLink(rosterName, period) {
   } catch (e) {
     console.error('[LINKS] Save error:', e);
     showToast('Error saving link');
+    btn.disabled = false;
+    btn.textContent = 'Link Student';
   }
 }
 
@@ -3193,9 +3274,11 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.dataset.action;
+  console.log('[LINKS] action:', action, 'rid:', el.dataset.rid, 'name:', el.dataset.name, 'period:', el.dataset.period);
   if (action === 'info') openInfoModal(el.dataset.rid);
   else if (action === 'link') openLinkModal(el.dataset.rid);
-  else if (action === 'select-link') selectLink(el.dataset.name, parseInt(el.dataset.period));
+  else if (action === 'select-link') pickLinkTarget(el.dataset.name, parseInt(el.dataset.period));
+  else if (action === 'confirm-link') confirmLink();
   else if (action === 'close-info') closeInfoModal();
   else if (action === 'close-link') closeLinkModal();
   else if (action === 'reassign') {
